@@ -4,7 +4,7 @@ import { Calendar, Info, ChevronRight, RefreshCcw, ArrowRight, Check, Download, 
 import { getSajuInfo, getYearByGanji, SajuInfo, SEASONS, MAJOR_SEASONS } from './lib/saju';
 import LifeCycleChart from './components/LifeCycleChart';
 import { jsPDF } from 'jspdf';
-import html2canvas from 'html2canvas';
+import { domToCanvas } from 'modern-screenshot';
 
 const YEARS = Array.from({ length: 121 }, (_, i) => 2026 - i);
 const MONTHS = Array.from({ length: 12 }, (_, i) => i + 1);
@@ -78,44 +78,46 @@ export default function App() {
     setIsExporting(true);
     
     try {
-      // Create a clone of the report element to modify it for PDF export
       const element = reportRef.current;
       
-      // Use html2canvas with onclone to handle hidden elements and scrollable areas
-      const canvas = await html2canvas(element, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: '#F9F9F7',
-        logging: false,
-        onclone: (clonedDoc) => {
-          // Hide elements with 'no-print' class in the cloned document
-          const noPrintElements = clonedDoc.querySelectorAll('.no-print');
-          noPrintElements.forEach(el => (el as HTMLElement).style.display = 'none');
-          
-          // Expand scrollable containers to show all content
-          const scrollContainers = clonedDoc.querySelectorAll('.overflow-y-auto');
-          scrollContainers.forEach(el => {
-            (el as HTMLElement).style.overflow = 'visible';
-            (el as HTMLElement).style.maxHeight = 'none';
-          });
+      // Expand scrollable containers to show all content before capturing
+      const scrollContainers = element.querySelectorAll('.overflow-y-auto');
+      const originalStyles: { el: HTMLElement; overflow: string; maxHeight: string }[] = [];
+      
+      scrollContainers.forEach(el => {
+        const htmlEl = el as HTMLElement;
+        originalStyles.push({
+          el: htmlEl,
+          overflow: htmlEl.style.overflow,
+          maxHeight: htmlEl.style.maxHeight
+        });
+        htmlEl.style.overflow = 'visible';
+        htmlEl.style.maxHeight = 'none';
+      });
 
-          // Workaround for oklch and oklab colors not supported by html2canvas
-          const styleTags = clonedDoc.querySelectorAll('style');
-          styleTags.forEach(tag => {
-            if (tag.innerHTML.includes('oklch') || tag.innerHTML.includes('oklab')) {
-              // Replace oklch/oklab with a hex fallback to prevent parsing errors
-              // This is a broad replacement to ensure the export doesn't fail
-              tag.innerHTML = tag.innerHTML.replace(/(oklch|oklab)\([^)]+\)/g, '#3b82f6');
-            }
-          });
-          
-          // Ensure the cloned element itself is visible and has no height restrictions
-          const clonedElement = clonedDoc.querySelector('.pdf-report-container') as HTMLElement;
-          if (clonedElement) {
-            clonedElement.style.height = 'auto';
-            clonedElement.style.overflow = 'visible';
-          }
-        }
+      // Hide non-print elements
+      const noPrintElements = element.querySelectorAll('.no-print');
+      const originalDisplay: { el: HTMLElement; display: string }[] = [];
+      noPrintElements.forEach(el => {
+        const htmlEl = el as HTMLElement;
+        originalDisplay.push({ el: htmlEl, display: htmlEl.style.display });
+        htmlEl.style.display = 'none';
+      });
+
+      // Use modern-screenshot to capture the element
+      // It handles modern CSS like oklch/oklab natively
+      const canvas = await domToCanvas(element, {
+        scale: 2,
+        backgroundColor: '#F9F9F7',
+      });
+
+      // Restore original styles
+      originalStyles.forEach(item => {
+        item.el.style.overflow = item.overflow;
+        item.el.style.maxHeight = item.maxHeight;
+      });
+      originalDisplay.forEach(item => {
+        item.el.style.display = item.display;
       });
 
       const imgData = canvas.toDataURL('image/png');
@@ -130,11 +132,10 @@ export default function App() {
       let heightLeft = imgHeight;
       let position = 0;
 
-      // Add the first page
+      // Add pages
       pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, imgHeight);
       heightLeft -= pdfHeight;
 
-      // Add subsequent pages if content is longer than one page
       while (heightLeft > 0) {
         position = heightLeft - imgHeight;
         pdf.addPage();
@@ -145,7 +146,7 @@ export default function App() {
       pdf.save(`인생의사계절_분석결과_${year}${month}${day}.pdf`);
     } catch (error) {
       console.error('PDF export failed:', error);
-      alert('PDF 저장 중 오류가 발생했습니다. 다시 시도해 주세요.');
+      alert(`PDF 저장 중 오류가 발생했습니다: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
       setIsExporting(false);
     }
@@ -368,7 +369,7 @@ export default function App() {
               </div>
 
               {/* Chart Section */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+              <div className="grid grid-cols-1 gap-8 items-start">
                 <LifeCycleChart 
                   ipchunYear={lifeCycleData!.ipchunYear}
                   currentYear={lifeCycleData!.currentYear}
@@ -381,49 +382,29 @@ export default function App() {
                       <span className="w-2 h-8 bg-blue-500 rounded-full"></span>
                       나의 인생과 절기
                     </h3>
-                    <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-[800px] overflow-y-auto pr-2 custom-scrollbar">
                       {lifeCycleData?.schedule.map((s, idx) => {
                         const isNext = s.year >= lifeCycleData.currentYear && (idx === 0 || lifeCycleData.schedule[idx-1].year < lifeCycleData.currentYear);
                         
                         const isMajor = MAJOR_SEASONS.includes(s.name);
                         
                         return (
-                          <div key={idx} className={`flex items-center justify-between p-4 rounded-2xl border ${isNext ? 'border-blue-200 bg-blue-50/50' : 'border-gray-50'} ${isMajor ? 'bg-red-50/30' : ''}`}>
-                            <div className="flex items-center gap-4">
-                              <span className={`w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold ${
+                          <div key={idx} className={`flex items-center justify-between p-3 rounded-2xl border ${isNext ? 'border-blue-200 bg-blue-50/50' : 'border-gray-50'} ${isMajor ? 'bg-red-50/30' : ''}`}>
+                            <div className="flex items-center gap-3">
+                              <span className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold ${
                                 isMajor ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-500'
                               }`}>
                                 {s.name}
                               </span>
                               <div>
-                                <p className="font-semibold">{s.year}년</p>
-                                <p className="text-xs text-gray-500">{s.description}</p>
+                                <p className="font-semibold text-sm">{s.year}년</p>
+                                <p className="text-[10px] text-gray-500">{s.description}</p>
                               </div>
                             </div>
-                            {isNext && <span className="text-[10px] font-bold bg-blue-500 text-white px-2 py-1 rounded-full uppercase tracking-tighter">Next</span>}
+                            {isNext && <span className="text-[9px] font-bold bg-blue-500 text-white px-2 py-0.5 rounded-full uppercase tracking-tighter">Next</span>}
                           </div>
                         );
                       })}
-                    </div>
-                  </div>
-
-                  <div className="bg-[#1A1A1A] text-white rounded-3xl p-8 shadow-xl">
-                    <h3 className="text-lg font-medium mb-4">현재 당신의 계절은?</h3>
-                    <p className="text-gray-400 text-sm leading-relaxed mb-6">
-                      {lifeCycleData && (() => {
-                        const diff = lifeCycleData.currentYear - lifeCycleData.ipchunYear;
-                        const normalized = diff < 0 ? diff + 60 : diff % 60;
-                        if (normalized < 15) return "현재 당신은 '봄'의 시기를 지나고 있습니다. 새로운 씨앗을 뿌리고 기초를 다지는 시기입니다.";
-                        if (normalized < 30) return "현재 당신은 '여름'의 시기를 지나고 있습니다. 왕성한 활동과 성장이 이루어지는 뜨거운 시기입니다.";
-                        if (normalized < 45) return "현재 당신은 '가을'의 시기를 지나고 있습니다. 그동안의 노력이 결실을 맺고 수확하는 풍요로운 시기입니다.";
-                        return "현재 당신은 '겨울'의 시기를 지나고 있습니다. 활동을 줄이고 내면을 채우며 다음 순환을 준비하는 지혜로운 시기입니다.";
-                      })()}
-                    </p>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2 text-blue-400 font-medium text-sm cursor-pointer hover:underline">
-                        자세히 보기 <ArrowRight size={16} />
-                      </div>
-                      <span className="text-[10px] text-gray-500 italic">본 계산은 표준 만세력을 바탕으로 합니다.</span>
                     </div>
                   </div>
                 </div>
