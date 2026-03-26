@@ -3,8 +3,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Calendar, Info, ChevronRight, RefreshCcw, ArrowRight, Check, Download, ShieldCheck, ExternalLink, Youtube, Globe } from 'lucide-react';
 import { getSajuInfo, getYearByGanji, SajuInfo, SEASONS, MAJOR_SEASONS } from './lib/saju';
 import LifeCycleChart from './components/LifeCycleChart';
+import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
-import jsPDF from 'jspdf';
 
 const YEARS = Array.from({ length: 121 }, (_, i) => 2026 - i);
 const MONTHS = Array.from({ length: 12 }, (_, i) => i + 1);
@@ -76,22 +76,76 @@ export default function App() {
   const exportToPDF = async () => {
     if (!reportRef.current) return;
     setIsExporting(true);
+    
     try {
-      const canvas = await html2canvas(reportRef.current, {
+      // Create a clone of the report element to modify it for PDF export
+      const element = reportRef.current;
+      
+      // Use html2canvas with onclone to handle hidden elements and scrollable areas
+      const canvas = await html2canvas(element, {
         scale: 2,
         useCORS: true,
-        backgroundColor: '#F9F9F7'
+        backgroundColor: '#F9F9F7',
+        logging: false,
+        onclone: (clonedDoc) => {
+          // Hide elements with 'no-print' class in the cloned document
+          const noPrintElements = clonedDoc.querySelectorAll('.no-print');
+          noPrintElements.forEach(el => (el as HTMLElement).style.display = 'none');
+          
+          // Expand scrollable containers to show all content
+          const scrollContainers = clonedDoc.querySelectorAll('.overflow-y-auto');
+          scrollContainers.forEach(el => {
+            (el as HTMLElement).style.overflow = 'visible';
+            (el as HTMLElement).style.maxHeight = 'none';
+          });
+
+          // Workaround for oklch and oklab colors not supported by html2canvas
+          const styleTags = clonedDoc.querySelectorAll('style');
+          styleTags.forEach(tag => {
+            if (tag.innerHTML.includes('oklch') || tag.innerHTML.includes('oklab')) {
+              // Replace oklch/oklab with a hex fallback to prevent parsing errors
+              // This is a broad replacement to ensure the export doesn't fail
+              tag.innerHTML = tag.innerHTML.replace(/(oklch|oklab)\([^)]+\)/g, '#3b82f6');
+            }
+          });
+          
+          // Ensure the cloned element itself is visible and has no height restrictions
+          const clonedElement = clonedDoc.querySelector('.pdf-report-container') as HTMLElement;
+          if (clonedElement) {
+            clonedElement.style.height = 'auto';
+            clonedElement.style.overflow = 'visible';
+          }
+        }
       });
+
       const imgData = canvas.toDataURL('image/png');
       const pdf = new jsPDF('p', 'mm', 'a4');
-      const imgProps = pdf.getImageProperties(imgData);
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
       
-      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = pdf.internal.pageSize.getHeight();
+      
+      const imgProps = pdf.getImageProperties(imgData);
+      const imgHeight = (imgProps.height * pdfWidth) / imgProps.width;
+      
+      let heightLeft = imgHeight;
+      let position = 0;
+
+      // Add the first page
+      pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, imgHeight);
+      heightLeft -= pdfHeight;
+
+      // Add subsequent pages if content is longer than one page
+      while (heightLeft > 0) {
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, imgHeight);
+        heightLeft -= pdfHeight;
+      }
+
       pdf.save(`인생의사계절_분석결과_${year}${month}${day}.pdf`);
     } catch (error) {
       console.error('PDF export failed:', error);
+      alert('PDF 저장 중 오류가 발생했습니다. 다시 시도해 주세요.');
     } finally {
       setIsExporting(false);
     }
@@ -275,7 +329,7 @@ export default function App() {
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
-              className="space-y-8"
+              className="space-y-8 pdf-report-container"
               ref={reportRef}
             >
               {/* Saju Summary */}
