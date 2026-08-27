@@ -9,7 +9,8 @@ import { domToCanvas } from 'modern-screenshot';
 const YEARS = Array.from({ length: 121 }, (_, i) => 2026 - i);
 const MONTHS = Array.from({ length: 12 }, (_, i) => i + 1);
 const DAYS = Array.from({ length: 31 }, (_, i) => i + 1);
-const HOURS = Array.from({ length: 24 }, (_, i) => i);
+// 30분 단위 시각 선택지 (0, 0.5, 1, ... 23.5)
+const TIME_OPTIONS = Array.from({ length: 48 }, (_, i) => i / 2);
 
 // 전통 생시추정 퀴즈용 데이터: 수면자세(그룹) × 가마(음양) × 시간대의 세 축으로 12지지가 유일하게 결정됨
 const TIME_BRANCHES = [
@@ -379,8 +380,8 @@ export default function App() {
                             className="w-full px-5 py-4 bg-gray-50 border border-transparent rounded-2xl text-lg font-medium focus:bg-white focus:border-blue-100 focus:ring-4 focus:ring-blue-50 transition-all outline-none appearance-none cursor-pointer group-hover:bg-gray-100/50"
                           >
                             <option value="">태어난 시간 모름</option>
-                            {HOURS.map(h => (
-                              <option key={h} value={h}>{String(h).padStart(2, '0')}시 ~ {String(h).padStart(2, '0')}:59</option>
+                            {TIME_OPTIONS.map(h => (
+                              <option key={h} value={h}>{String(Math.floor(h)).padStart(2, '0')}:{h % 1 !== 0 ? '30' : '00'}</option>
                             ))}
                           </select>
                           <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-gray-300 group-hover:text-gray-400 transition-colors">

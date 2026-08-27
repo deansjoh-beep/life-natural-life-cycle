@@ -78,11 +78,32 @@ function toHangul(char: string): string {
   return HANJA_MAP[char] || char;
 }
 
+/** 생년월일(+시각, 0.5 = 30분 단위 지원)을 양력 Solar 객체로 변환. 시각 모름(null)은 정오로 간주. */
+function buildSolar(
+  year: number,
+  month: number,
+  day: number,
+  isLunar: boolean,
+  isLeapMonth: boolean,
+  hour: number | null
+): Solar {
+  const h = hour ?? 12;
+  const hh = Math.floor(h);
+  const mm = Math.round((h - hh) * 60);
+  if (isLunar) {
+    // lunar-typescript는 음수 월로 윤달을 표현함 (예: 윤5월 → -5)
+    const lunar = Lunar.fromYmd(year, isLeapMonth ? -month : month, day);
+    const s = lunar.getSolar();
+    return Solar.fromYmdHms(s.getYear(), s.getMonth(), s.getDay(), hh, mm, 0);
+  }
+  return Solar.fromYmdHms(year, month, day, hh, mm, 0);
+}
+
 /**
  * 생년월일(+시각)로 일간과 월지를 추출하고 기점 간지 후보 2개를 만듦.
  *
  * @param isLeapMonth 음력 윤달 여부 (isLunar가 true일 때만 의미 있음)
- * @param hour 출생 시각(0~23). 모르는 경우 null → 정오(12시)로 간주.
+ * @param hour 출생 시각(0~23.5, 0.5 단위 = 30분). 모르는 경우 null → 정오(12시)로 간주.
  *             월지는 절기 입기 '시각'을 경계로 바뀌므로, 절입일 출생자는 시각에 따라 결과가 달라질 수 있음.
  * @throws 존재하지 않는 날짜(예: 윤달이 없는 해의 윤달, 음력 30일이 없는 달)인 경우
  */
@@ -94,16 +115,7 @@ export function getSajuInfo(
   isLeapMonth: boolean = false,
   hour: number | null = null
 ): SajuInfo {
-  const h = hour ?? 12;
-  let solar: Solar;
-  if (isLunar) {
-    // lunar-typescript는 음수 월로 윤달을 표현함 (예: 윤5월 → -5)
-    const lunar = Lunar.fromYmd(year, isLeapMonth ? -month : month, day);
-    const s = lunar.getSolar();
-    solar = Solar.fromYmdHms(s.getYear(), s.getMonth(), s.getDay(), h, 0, 0);
-  } else {
-    solar = Solar.fromYmdHms(year, month, day, h, 0, 0);
-  }
+  const solar = buildSolar(year, month, day, isLunar, isLeapMonth, hour);
   const eightChar = solar.getLunar().getEightChar();
 
   const dayMaster = toHangul(eightChar.getDayGan());
@@ -291,15 +303,7 @@ export function getDaeunList(
   hour: number | null = null,
   gender: 'male' | 'female' = 'male'
 ): DaeunItem[] {
-  const h = hour ?? 12;
-  let solar: Solar;
-  if (isLunar) {
-    const lunar = Lunar.fromYmd(year, isLeapMonth ? -month : month, day);
-    const s = lunar.getSolar();
-    solar = Solar.fromYmdHms(s.getYear(), s.getMonth(), s.getDay(), h, 0, 0);
-  } else {
-    solar = Solar.fromYmdHms(year, month, day, h, 0, 0);
-  }
+  const solar = buildSolar(year, month, day, isLunar, isLeapMonth, hour);
   const eightChar = solar.getLunar().getEightChar();
   const yun = eightChar.getYun(gender === 'male' ? 1 : 0);
   const items: DaeunItem[] = [];
