@@ -162,26 +162,8 @@ const LifeCycleChart: React.FC<Props> = ({ ipchunYear, currentYear, birthYear })
     const birthAngle = (normalizedBirthYears / 60) * 360 + 180;
     const birthRad = toRad(birthAngle);
 
-    // 출생 바늘 (짧은 초록)
     const birthTip = 122;
-    g.append('line')
-      .attr('x1', 0).attr('y1', 0)
-      .attr('x2', Math.cos(birthRad) * birthTip)
-      .attr('y2', Math.sin(birthRad) * birthTip)
-      .attr('stroke', '#10b981')
-      .attr('stroke-width', 3)
-      .attr('stroke-linecap', 'round')
-      .attr('opacity', 0.85);
-
-    // 현재 바늘 (긴 주황)
     const currentTip = 160;
-    g.append('line')
-      .attr('x1', 0).attr('y1', 0)
-      .attr('x2', Math.cos(currentRad) * currentTip)
-      .attr('y2', Math.sin(currentRad) * currentTip)
-      .attr('stroke', '#f59e0b')
-      .attr('stroke-width', 5)
-      .attr('stroke-linecap', 'round');
 
     // ── 7. 흰 시계 중심판 ──
     g.append('circle')
@@ -249,6 +231,30 @@ const LifeCycleChart: React.FC<Props> = ({ ipchunYear, currentYear, birthYear })
       .attr('font-weight', '800')
       .attr('fill', cur.label)
       .text(`${cur.name}`);
+
+    // ── 10. 시곗바늘 (항상 최전면) ──
+    // 출생 바늘 (짧은 초록)
+    g.append('line')
+      .attr('x1', 0).attr('y1', 0)
+      .attr('x2', Math.cos(birthRad) * birthTip)
+      .attr('y2', Math.sin(birthRad) * birthTip)
+      .attr('stroke', '#10b981')
+      .attr('stroke-width', 3)
+      .attr('stroke-linecap', 'round')
+      .attr('opacity', 0.85);
+
+    // 현재 바늘 (긴 주황)
+    g.append('line')
+      .attr('x1', 0).attr('y1', 0)
+      .attr('x2', Math.cos(currentRad) * currentTip)
+      .attr('y2', Math.sin(currentRad) * currentTip)
+      .attr('stroke', '#f59e0b')
+      .attr('stroke-width', 5)
+      .attr('stroke-linecap', 'round');
+
+    // 중심축 핀
+    g.append('circle').attr('r', 5.5).attr('fill', '#1f2937');
+    g.append('circle').attr('r', 2).attr('fill', '#ffffff');
 
   }, [ipchunYear, currentYear, birthYear]);
 
