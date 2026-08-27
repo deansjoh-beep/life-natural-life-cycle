@@ -1,12 +1,13 @@
 /**
- * SYSTEM INSTRUCTION: 
+ * SYSTEM INSTRUCTION:
  * 모든 간지(干支) 및 절기 계산은 반드시 '표준 만세력'의 기준을 엄격히 준수해야 함.
  * 24절기의 입기 시각을 정확히 반영하여 월건(月建)과 일진(日辰)을 산출하며,
  * 호호당의 자연순환명리학 원칙에 따라 일간과 월지를 조합함.
- * 
+ *
  * [중요 지침]
- * 60년 주기의 기점이 되는 '입춘' 연도는 반드시 사용자의 '출생 연도'와 같거나 그 이후여야 함.
- * 출생 연도 이전으로 기점이 배정되는 오류를 방지하기 위해, 계산된 연도가 출생 연도보다 작을 경우 60년을 더하여 조정함.
+ * 60년 주기의 기점(입춘) 연도는 사용자의 '출생 연도'가 속한 주기의 시작점이어야 함.
+ * 즉, 기점 연도는 항상 출생 연도와 같거나 그 이전 60년 이내로 배정함.
+ * (예: 1990년생의 기점 간지가 정미(丁未)라면 2027년이 아닌 1967년)
  */
 import { Solar, Lunar } from 'lunar-typescript';
 
@@ -25,57 +26,72 @@ export interface SajuInfo {
   ganji2: string;
 }
 
+// 천간 10자 + 지지 12자 전체 매핑
 const HANJA_MAP: Record<string, string> = {
   '甲': '갑', '乙': '을', '丙': '병', '丁': '정', '戊': '무',
   '己': '기', '庚': '경', '辛': '신', '壬': '임', '癸': '계',
   '子': '자', '丑': '축', '寅': '인', '卯': '묘', '辰': '진', '巳': '사',
-  '午': '오', '미': '미', '申': '신', '酉': '유', '戌': '술', '亥': '해'
+  '午': '오', '未': '미', '申': '신', '酉': '유', '戌': '술', '亥': '해'
 };
-
-// '未' (미) was missing in the previous thought, adding it correctly.
-// Also ensuring all 12 branches are covered.
-// '午' is '오', '未' is '미', '申' is '신', '酉' is '유', '戌' is '술', '亥' is '해'
-// '子' is '자', '丑' is '축', '寅' is '인', '卯' is '묘', '辰' is '진', '巳' is '사'
 
 function toHangul(char: string): string {
   return HANJA_MAP[char] || char;
 }
 
-export function getSajuInfo(year: number, month: number, day: number, isLunar: boolean): SajuInfo {
+/**
+ * 생년월일(+시각)로 일간과 월지를 추출하고 기점 간지 후보 2개를 만듦.
+ *
+ * @param isLeapMonth 음력 윤달 여부 (isLunar가 true일 때만 의미 있음)
+ * @param hour 출생 시각(0~23). 모르는 경우 null → 정오(12시)로 간주.
+ *             월지는 절기 입기 '시각'을 경계로 바뀌므로, 절입일 출생자는 시각에 따라 결과가 달라질 수 있음.
+ * @throws 존재하지 않는 날짜(예: 윤달이 없는 해의 윤달, 음력 30일이 없는 달)인 경우
+ */
+export function getSajuInfo(
+  year: number,
+  month: number,
+  day: number,
+  isLunar: boolean,
+  isLeapMonth: boolean = false,
+  hour: number | null = null
+): SajuInfo {
+  const h = hour ?? 12;
   let solar: Solar;
   if (isLunar) {
-    const lunar = Lunar.fromYmd(year, month, day);
-    solar = lunar.getSolar();
+    // lunar-typescript는 음수 월로 윤달을 표현함 (예: 윤5월 → -5)
+    const lunar = Lunar.fromYmd(year, isLeapMonth ? -month : month, day);
+    const s = lunar.getSolar();
+    solar = Solar.fromYmdHms(s.getYear(), s.getMonth(), s.getDay(), h, 0, 0);
   } else {
-    solar = Solar.fromYmd(year, month, day);
+    solar = Solar.fromYmdHms(year, month, day, h, 0, 0);
   }
-  const lunar = solar.getLunar();
-  const eightChar = lunar.getEightChar();
+  const eightChar = solar.getLunar().getEightChar();
 
   const dayMaster = toHangul(eightChar.getDayGan());
   const monthBranch = toHangul(eightChar.getMonthZhi());
 
-  const ganji1 = dayMaster + monthBranch;
   const oppositeBranch = JI_OPPOSITE[monthBranch];
-  const ganji2 = dayMaster + oppositeBranch;
+  if (!oppositeBranch) {
+    // HANJA_MAP 누락 등으로 변환에 실패하면 잘못된 결과를 조용히 출력하지 않고 즉시 실패시킴
+    throw new Error(`월지 변환에 실패했습니다: ${monthBranch}`);
+  }
 
   return {
     dayMaster,
     monthBranch,
-    ganji1,
-    ganji2
+    ganji1: dayMaster + monthBranch,
+    ganji2: dayMaster + oppositeBranch
   };
 }
 
+/**
+ * 주어진 간지에 해당하는 연도 중, 기준 연도(출생 연도)가 속한 주기의 연도를 반환함.
+ * 반환값은 항상 referenceYear 이하, referenceYear - 59 이상임.
+ */
 export function getYearByGanji(ganji: string, referenceYear: number): number {
-  // 60갑자 중 해당 간지가 몇 번째인지 찾기
   const gan = ganji[0];
   const zhi = ganji[1];
-  
-  const ganIdx = GAN.indexOf(gan);
-  const zhiIdx = JI.indexOf(zhi);
-  
-  // (ganIdx - zhiIdx) % 2 == 0 이어야 함 (정상적인 간지)
+
+  // 60갑자 중 해당 간지가 몇 번째인지 찾기
   let targetIdx = -1;
   for (let i = 0; i < 60; i++) {
     if (GAN[i % 10] === gan && JI[i % 12] === zhi) {
@@ -83,28 +99,16 @@ export function getYearByGanji(ganji: string, referenceYear: number): number {
       break;
     }
   }
-
-  // 기준 연도(태어난 해) 근처의 해당 간지 연도 찾기
-  // 갑자년(0번째)은 1924, 1984, 2044... (60n + 4)
-  // 연도 % 60 을 했을 때의 값 계산
-  // 1984 % 60 = 4
-  // targetYear % 60 = (targetIdx + 4) % 60
-  
-  const refMod = referenceYear % 60;
-  const targetMod = (targetIdx + 4) % 60;
-  
-  let year = referenceYear - (refMod - targetMod);
-  
-  // 출생 연도(referenceYear)보다 이전으로 배정되지 않도록 조정
-  while (year < referenceYear) {
-    year += 60;
+  if (targetIdx === -1) {
+    // 음양이 어긋난 조합(예: 갑축) 또는 잘못된 글자 → 조용히 틀린 연도를 내지 않고 실패시킴
+    throw new Error(`유효하지 않은 간지입니다: ${ganji}`);
   }
-  
-  // 만약 너무 미래로 갔다면 (예: 60년 이상 차이), 
-  // 호호당 이론상 가장 가까운 미래의 해당 간지년을 선택함
-  // (이미 위 while문에서 최소 referenceYear 이상의 첫 번째 연도를 찾음)
-  
-  return year;
+
+  // 갑자년(0번째)은 1924, 1984, 2044... → year % 60 === (targetIdx + 4) % 60
+  const targetMod = (targetIdx + 4) % 60;
+  // 기준 연도로부터 몇 년 전이 해당 간지년인지 (0~59)
+  const diff = ((referenceYear % 60) - targetMod + 60) % 60;
+  return referenceYear - diff;
 }
 
 export const SEASONS = [

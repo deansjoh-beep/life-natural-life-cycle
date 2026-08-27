@@ -9,14 +9,18 @@ import { domToCanvas } from 'modern-screenshot';
 const YEARS = Array.from({ length: 121 }, (_, i) => 2026 - i);
 const MONTHS = Array.from({ length: 12 }, (_, i) => i + 1);
 const DAYS = Array.from({ length: 31 }, (_, i) => i + 1);
+const HOURS = Array.from({ length: 24 }, (_, i) => i);
 
 export default function App() {
   const [year, setYear] = useState(1990);
   const [month, setMonth] = useState(1);
   const [day, setDay] = useState(1);
   const [isLunar, setIsLunar] = useState(false);
+  const [isLeapMonth, setIsLeapMonth] = useState(false);
+  const [hour, setHour] = useState<number | null>(null);
   const [privacyAccepted, setPrivacyAccepted] = useState(false);
   const [saju, setSaju] = useState<SajuInfo | null>(null);
+  const [analyzedYear, setAnalyzedYear] = useState<number | null>(null);
   const [selectedIpchunGanji, setSelectedIpchunGanji] = useState<string | null>(null);
   
   const [currentPage, setCurrentPage] = useState<'input' | 'result' | 'guide'>('input');
@@ -29,21 +33,36 @@ export default function App() {
       alert('개인정보 제공 동의가 필요합니다.');
       return;
     }
-    const info = getSajuInfo(year, month, day, isLunar);
-    setSaju(info);
-    setSelectedIpchunGanji(info.ganji1);
-    setCurrentPage('result');
+    // 양력 날짜 유효성 검사 (예: 2월 31일 방지)
+    if (!isLunar) {
+      const d = new Date(year, month - 1, day);
+      if (d.getFullYear() !== year || d.getMonth() !== month - 1 || d.getDate() !== day) {
+        alert(year + '년 ' + month + '월 ' + day + '일은 존재하지 않는 날짜입니다. 다시 확인해 주세요.');
+        return;
+      }
+    }
+    try {
+      const info = getSajuInfo(year, month, day, isLunar, isLunar && isLeapMonth, hour);
+      setSaju(info);
+      setAnalyzedYear(year);
+      setSelectedIpchunGanji(info.ganji1);
+      setCurrentPage('result');
+    } catch (e) {
+      console.error('Saju calculation failed:', e);
+      alert(
+        isLunar
+          ? '음력 ' + year + '년 ' + (isLeapMonth ? '윤' : '') + month + '월 ' + day + '일은 존재하지 않는 날짜입니다. 윤달 여부와 날짜를 다시 확인해 주세요.'
+          : '날짜 계산 중 오류가 발생했습니다. 입력값을 다시 확인해 주세요.'
+      );
+    }
   };
 
   const lifeCycleData = useMemo(() => {
-    if (!saju || !selectedIpchunGanji) return null;
+    if (!saju || !selectedIpchunGanji || analyzedYear === null) return null;
     
-    const birthYear = year;
-    // Find the ipchunYear that was active at birth (the one before or equal to birthYear)
-    let ipchunYear = getYearByGanji(selectedIpchunGanji, birthYear);
-    while (ipchunYear > birthYear) {
-      ipchunYear -= 60;
-    }
+    const birthYear = analyzedYear;
+    // getYearByGanji는 출생 연도가 속한 주기의 기점 연도(출생 연도 이하)를 반환함
+    const ipchunYear = getYearByGanji(selectedIpchunGanji, birthYear);
     
     const currentYear = new Date().getFullYear();
     
@@ -71,7 +90,7 @@ export default function App() {
       birthYear,
       schedule
     };
-  }, [saju, selectedIpchunGanji, year]);
+  }, [saju, selectedIpchunGanji, analyzedYear]);
 
   const exportToPDF = async () => {
     if (!reportRef.current) return;
@@ -104,6 +123,15 @@ export default function App() {
         htmlEl.style.display = 'none';
       });
 
+      // Show print-only elements (@media print styles don't apply to canvas capture)
+      const printOnlyElements = element.querySelectorAll('.print-block');
+      const originalPrintDisplay: { el: HTMLElement; display: string }[] = [];
+      printOnlyElements.forEach(el => {
+        const htmlEl = el as HTMLElement;
+        originalPrintDisplay.push({ el: htmlEl, display: htmlEl.style.display });
+        htmlEl.style.display = 'block';
+      });
+
       // Use modern-screenshot to capture the element
       // It handles modern CSS like oklch/oklab natively
       const canvas = await domToCanvas(element, {
@@ -117,6 +145,9 @@ export default function App() {
         item.el.style.maxHeight = item.maxHeight;
       });
       originalDisplay.forEach(item => {
+        item.el.style.display = item.display;
+      });
+      originalPrintDisplay.forEach(item => {
         item.el.style.display = item.display;
       });
 
@@ -253,7 +284,7 @@ export default function App() {
                     {/* Calendar Type Toggle */}
                     <div className="flex justify-center p-1.5 bg-gray-100/80 backdrop-blur-sm rounded-2xl w-fit mx-auto">
                       <button
-                        onClick={() => setIsLunar(false)}
+                        onClick={() => { setIsLunar(false); setIsLeapMonth(false); }}
                         className={`px-10 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300 ${!isLunar ? 'bg-white shadow-md text-blue-600' : 'text-gray-400 hover:text-gray-600'}`}
                       >
                         양력
@@ -289,6 +320,45 @@ export default function App() {
                           </div>
                         </div>
                       ))}
+                    </div>
+
+                    {/* Birth Time & Leap Month */}
+                    <div className="space-y-3">
+                      <div className="space-y-2 text-left">
+                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Time</label>
+                        <div className="relative group">
+                          <select
+                            value={hour === null ? '' : hour}
+                            onChange={(e) => setHour(e.target.value === '' ? null : Number(e.target.value))}
+                            className="w-full px-5 py-4 bg-gray-50 border border-transparent rounded-2xl text-lg font-medium focus:bg-white focus:border-blue-100 focus:ring-4 focus:ring-blue-50 transition-all outline-none appearance-none cursor-pointer group-hover:bg-gray-100/50"
+                          >
+                            <option value="">태어난 시간 모름</option>
+                            {HOURS.map(h => (
+                              <option key={h} value={h}>{String(h).padStart(2, '0')}시 ~ {String(h).padStart(2, '0')}:59</option>
+                            ))}
+                          </select>
+                          <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-gray-300 group-hover:text-gray-400 transition-colors">
+                            <ChevronRight size={18} className="rotate-90" />
+                          </div>
+                        </div>
+                        <p className="text-[10px] text-gray-400 ml-1">* 시간을 모르는 경우 정오(12시)를 기준으로 계산합니다. 절기가 바뀌는 날 출생자는 시각에 따라 결과가 달라질 수 있습니다.</p>
+                      </div>
+                      {isLunar && (
+                        <label className="flex items-center gap-3 cursor-pointer group w-fit mx-auto">
+                          <div className="relative">
+                            <input
+                              type="checkbox"
+                              checked={isLeapMonth}
+                              onChange={(e) => setIsLeapMonth(e.target.checked)}
+                              className="peer sr-only"
+                            />
+                            <div className="w-6 h-6 border-2 border-gray-200 rounded-lg transition-all peer-checked:bg-blue-600 peer-checked:border-blue-600 group-hover:border-blue-300 flex items-center justify-center">
+                              <Check size={14} className="text-white opacity-0 scale-50 peer-checked:opacity-100 peer-checked:scale-100 transition-all duration-300" />
+                            </div>
+                          </div>
+                          <span className="text-sm text-gray-500 group-hover:text-gray-700 transition-colors">윤달(閏月)에 태어났습니다</span>
+                        </label>
+                      )}
                     </div>
                   </div>
 
