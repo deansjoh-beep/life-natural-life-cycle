@@ -10,10 +10,10 @@ interface Props {
 
 // 계절 국면: 차트 각도 기준 (입춘=180°에서 시계방향으로 15년씩)
 const QUADRANTS = [
-  { name: '봄', emoji: '🌱', start: 180, fill: '#22c55e', label: '#15803d' },
-  { name: '여름', emoji: '☀️', start: 270, fill: '#f97316', label: '#c2410c' },
-  { name: '가을', emoji: '🍂', start: 0, fill: '#eab308', label: '#a16207' },
-  { name: '겨울', emoji: '❄️', start: 90, fill: '#3b82f6', label: '#1e40af' },
+  { name: '봄', start: 180, fill: '#22c55e', label: '#15803d' },
+  { name: '여름', start: 270, fill: '#f97316', label: '#c2410c' },
+  { name: '가을', start: 0, fill: '#eab308', label: '#a16207' },
+  { name: '겨울', start: 90, fill: '#3b82f6', label: '#1e40af' },
 ];
 
 // 계절이 시작되는 절기 → 해당 국면 인덱스
@@ -148,7 +148,7 @@ const LifeCycleChart: React.FC<Props> = ({ ipchunYear, currentYear, birthYear })
         .style('paint-order', 'stroke')
         .style('stroke', '#fff')
         .style('stroke-width', '5px')
-        .text(`${q.emoji} ${q.name}`);
+        .text(`${q.name}`);
     });
 
     // ── 6. 시곗바늘 (흰 중심판 아래에 그려 중앙 텍스트를 가리지 않음) ──
@@ -248,7 +248,7 @@ const LifeCycleChart: React.FC<Props> = ({ ipchunYear, currentYear, birthYear })
       .attr('font-size', '34px')
       .attr('font-weight', '800')
       .attr('fill', cur.label)
-      .text(`${cur.emoji} ${cur.name}`);
+      .text(`${cur.name}`);
 
   }, [ipchunYear, currentYear, birthYear]);
 
