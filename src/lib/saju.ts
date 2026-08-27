@@ -246,6 +246,17 @@ export function decideGijeom(dayMaster: string, monthBranch: string, timeBranch:
  * 주어진 간지에 해당하는 연도 중, 기준 연도(출생 연도)가 속한 주기의 연도를 반환함.
  * 반환값은 항상 referenceYear 이하, referenceYear - 59 이상임.
  */
+/**
+ * 간지가 60갑자에 실제로 존재하는 조합인지 검사함.
+ * 60갑자에는 양간+양지, 음간+음지 조합만 존재하므로(각 30개씩 총 60개),
+ * 일간과 월지의 음양이 어긋나면(예: 갑묘) 존재하지 않는 간지가 됨.
+ */
+export function isValidGanji(ganji: string): boolean {
+  const ganIdx = GAN.indexOf(ganji[0]);
+  const zhiIdx = JI.indexOf(ganji[1]);
+  return ganIdx >= 0 && zhiIdx >= 0 && ganIdx % 2 === zhiIdx % 2;
+}
+
 export function getYearByGanji(ganji: string, referenceYear: number): number {
   const gan = ganji[0];
   const zhi = ganji[1];

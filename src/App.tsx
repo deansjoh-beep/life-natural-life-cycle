@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Calendar, Info, ChevronRight, RefreshCcw, ArrowRight, Check, Download, ShieldCheck, ExternalLink, Youtube, Globe } from 'lucide-react';
-import { getSajuInfo, getYearByGanji, decideGijeom, SajuInfo, SEASONS, MAJOR_SEASONS } from './lib/saju';
+import { getSajuInfo, getYearByGanji, decideGijeom, isValidGanji, SajuInfo, SEASONS, MAJOR_SEASONS } from './lib/saju';
 import LifeCycleChart from './components/LifeCycleChart';
 import { jsPDF } from 'jspdf';
 import { domToCanvas } from 'modern-screenshot';
@@ -63,6 +63,8 @@ export default function App() {
 
   const lifeCycleData = useMemo(() => {
     if (!saju || !selectedIpchunGanji || analyzedYear === null) return null;
+    // 일간과 월지의 음양이 어긋나 60갑자에 없는 조합(예: 갑묘)이면 연도 계산 불가
+    if (!isValidGanji(selectedIpchunGanji)) return null;
     
     const birthYear = analyzedYear;
     // getYearByGanji는 출생 연도가 속한 주기의 기점 연도(출생 연도 이하)를 반환함
@@ -448,11 +450,21 @@ export default function App() {
 
               {/* Chart Section */}
               <div className="grid grid-cols-1 gap-8 items-start">
-                <LifeCycleChart 
-                  ipchunYear={lifeCycleData!.ipchunYear}
-                  currentYear={lifeCycleData!.currentYear}
-                  birthYear={lifeCycleData!.birthYear}
-                />
+                {lifeCycleData ? (
+                  <LifeCycleChart
+                    ipchunYear={lifeCycleData.ipchunYear}
+                    currentYear={lifeCycleData.currentYear}
+                    birthYear={lifeCycleData.birthYear}
+                  />
+                ) : (
+                  <div className="bg-white rounded-3xl p-8 border border-amber-200 shadow-sm">
+                    <p className="text-sm font-bold text-amber-700 mb-2">이 사주는 현재 자동 계산을 지원하지 않습니다</p>
+                    <p className="text-sm text-amber-700/80 leading-relaxed">
+                      일간 [{saju?.dayMaster}]와 월지 [{saju?.monthBranch}]의 음양이 서로 달라, 두 글자를 합친 간지 [{selectedIpchunGanji}]가 60갑자에 존재하지 않는 조합입니다.
+                      60갑자에는 양간+양지, 음간+음지 조합만 존재합니다. 이 경우의 기점 결정 원칙이 확정되는 대로 반영될 예정입니다.
+                    </p>
+                  </div>
+                )}
 
                 <div className="space-y-6">
                   <div className="bg-white rounded-3xl p-8 border border-gray-100 shadow-sm">
