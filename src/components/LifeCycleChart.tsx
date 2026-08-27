@@ -115,8 +115,8 @@ const LifeCycleChart: React.FC<Props> = ({ ipchunYear, currentYear, birthYear })
         .attr('text-anchor', 'middle')
         .attr('dominant-baseline', 'middle')
         .attr('font-size', '10px')
-        .attr('font-weight', '500')
-        .attr('fill', '#94a3b8')
+        .attr('font-weight', '400')
+        .attr('fill', '#cbd5e1')
         .style('paint-order', 'stroke')
         .style('stroke', '#fff')
         .style('stroke-width', '4px');
@@ -190,9 +190,7 @@ const LifeCycleChart: React.FC<Props> = ({ ipchunYear, currentYear, birthYear })
       .attr('stroke', '#e5e7eb')
       .attr('stroke-width', 1.5);
 
-    // 중심축
-    g.append('circle').attr('r', 6).attr('fill', '#1f2937');
-    g.append('circle').attr('r', 2.5).attr('fill', '#ffffff');
+
 
     // ── 8. 바늘 끝 마커 + 라벨 ──
     // 출생점
@@ -238,42 +236,18 @@ const LifeCycleChart: React.FC<Props> = ({ ipchunYear, currentYear, birthYear })
       .style('stroke-width', '3px')
       .text(`현재 (${currentYear}년)`);
 
-    // ── 9. 중앙: 지금 나의 계절 ──
+    // ── 9. 중앙: 현재 계절만 크게 ──
     const qIdx = Math.floor(normalizedYears / 15) % 4;
     const cur = QUADRANTS[qIdx];
-    const yearsIntoSeason = Math.floor(normalizedYears % 15) + 1;
 
     g.append('text')
       .attr('text-anchor', 'middle')
-      .attr('y', -40)
-      .attr('font-size', '11px')
-      .attr('font-weight', '600')
-      .attr('fill', '#9ca3af')
-      .attr('letter-spacing', '2')
-      .text('지금 나의 계절');
-
-    g.append('text')
-      .attr('text-anchor', 'middle')
-      .attr('y', -6)
-      .attr('font-size', '30px')
+      .attr('dominant-baseline', 'middle')
+      .attr('y', 2)
+      .attr('font-size', '34px')
       .attr('font-weight', '800')
       .attr('fill', cur.label)
       .text(`${cur.emoji} ${cur.name}`);
-
-    g.append('text')
-      .attr('text-anchor', 'middle')
-      .attr('y', 20)
-      .attr('font-size', '12px')
-      .attr('font-weight', '600')
-      .attr('fill', '#6b7280')
-      .text(`${cur.name} ${yearsIntoSeason}년째 (${currentYear}년)`);
-
-    g.append('text')
-      .attr('text-anchor', 'middle')
-      .attr('y', 42)
-      .attr('font-size', '10px')
-      .attr('fill', '#b6bcc6')
-      .text('인생의 사계절 · 60년 주기');
 
   }, [ipchunYear, currentYear, birthYear]);
 
