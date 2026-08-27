@@ -43,7 +43,7 @@ export default function App() {
     }
     try {
       const info = getSajuInfo(year, month, day, isLunar, isLunar && isLeapMonth, hour);
-      const gijeom = decideGijeom(info.dayMaster, info.monthBranch, info.timeBranch);
+      const gijeom = decideGijeom(info.dayMaster, info.monthBranch, info.timeBranch, info.baseBranch);
       setSaju(info);
       setAnalyzedYear(year);
       // 조후 → 억부 순으로 판정해 추천 입춘을 기본값으로, 판정 불가면 일간+월지 조합을 기본값으로
@@ -59,7 +59,7 @@ export default function App() {
     }
   };
 
-  const decision = useMemo(() => (saju ? decideGijeom(saju.dayMaster, saju.monthBranch, saju.timeBranch) : null), [saju]);
+  const decision = useMemo(() => (saju ? decideGijeom(saju.dayMaster, saju.monthBranch, saju.timeBranch, saju.baseBranch) : null), [saju]);
 
   const lifeCycleData = useMemo(() => {
     if (!saju || !selectedIpchunGanji || analyzedYear === null) return null;
@@ -434,11 +434,11 @@ export default function App() {
                     ))}
                   </div>
                   <p className="mt-3 text-[11px] text-gray-400 flex items-center gap-1">
-                    <Info size={12} /> {decision && decision.ipchunBranch && saju
+                    <Info size={12} /> {(saju && saju.adjusted ? '월지 조정: 일간 [' + saju.dayMaster + ']와 월지 [' + saju.monthBranch + ']의 음양이 달라 60갑자에 없는 조합이므로, 이번 달이 다음 달을 생하는 이치에 따라 월지를 다음 지지 [' + saju.baseBranch + ']로 조정해 기점 후보를 잡았습니다. ' : '') + (decision && decision.ipchunBranch && saju
                       ? (decision.method === '조후'
                           ? '조후 판정: 사주가 ' + decision.johu.chart + (decision.johu.chart === '한' ? '(寒)' : '(暖)') + '하여 ' + (decision.johu.chart === '한' ? '따뜻한 쪽' : '차가운 쪽') + '인 [' + decision.ipchuBranch + ']가 조후용신에 가까움 → [' + saju.dayMaster + decision.ipchuBranch + ']가 입추(정점)이 되고, [' + saju.dayMaster + decision.ipchunBranch + ']를 입춘 기점으로 추천합니다. 살아온 인생과 다르면 직접 변경하세요.'
                           : '억부 판정(조후 중립): 일간 [' + saju.dayMaster + ']는 월지 [' + saju.monthBranch + ']에 ' + (decision.eokbu!.strength === '신강' ? '득령하여 신강' : '실령하여 신약') + '하므로, ' + (decision.eokbu!.strength === '신강' ? '힘을 빼거나 억제하는' : '일간을 돕는') + ' 오행의 글자 [' + decision.ipchuBranch + ']가 억부용신에 가까움 → [' + saju.dayMaster + decision.ipchuBranch + ']가 입추(정점)이 되고, [' + saju.dayMaster + decision.ipchunBranch + ']를 입춘 기점으로 추천합니다. 살아온 인생과 다르면 직접 변경하세요.')
-                      : '조후가 중립적이고 억부(월지 득령 기준)로도 두 후보를 가릴 수 없습니다. 살아온 인생을 바탕으로 입춘 기점을 직접 선택하세요.'}
+                      : '조후가 중립적이고 억부(월지 득령 기준)로도 두 후보를 가릴 수 없습니다. 살아온 인생을 바탕으로 입춘 기점을 직접 선택하세요.')}
                   </p>
                 </div>
                 {/* Print-only selected ganji */}
@@ -568,7 +568,7 @@ export default function App() {
                     {
                       num: 1,
                       title: "일간(日干)과 월지(月支) 추출 및 기점 간지 조합",
-                      desc: "사주의 핵심 몸통인 태어난 달의 지지(월지 혹은 월령)와 태어난 날의 천간(일간)을 추출하여 하나의 간지(干支)로 연결합니다.",
+                      desc: "사주의 핵심 몸통인 태어난 달의 지지(월지 혹은 월령)와 태어난 날의 천간(일간)을 추출하여 하나의 간지(干支)로 연결합니다. 일간과 월지의 음양이 서로 달라 60갑자에 존재하지 않는 조합(예: 계인)이 되는 경우에는, 이번 달이 다음 달을 생(生)하는 이치에 따라 월지를 다음 지지로 조정합니다(예: 계인 → 계묘).",
                       example: "예시: 일간이 '정(丁)'이고 월지가 '미(未)'인 경우 기본 기점은 '정미(丁未)'가 됩니다."
                     },
                     {

@@ -9,6 +9,15 @@
  * 즉, 기점 연도는 항상 출생 연도와 같거나 그 이전 60년 이내로 배정함.
  * (예: 1990년생의 기점 간지가 정미(丁未)라면 2027년이 아닌 1967년)
  *
+ * [월지 조정 지침 — 60갑자에 없는 조합의 처리]
+ * 60갑자에는 양간+양지, 음간+음지 조합만 존재하므로, 일간과 월지의 음양이
+ * 서로 다르면(예: 계인) 두 글자를 합친 간지가 존재하지 않는다.
+ * 이 경우 월지를 '다음 지지'(순행 방향)로 조정하여 기점 간지를 만든다.
+ * 근거: 이번 달(今月)은 다음 달을 생(生)하기 때문.
+ * (호호당 유튜브 사례: 인월 계수 일간 → 계인은 없으므로 계묘를 취함)
+ * 단, 조후 판단(한난)과 억부 판단(득령)은 조정 전의 '실제 월지'를 기준으로 하고,
+ * 입춘/입추 후보 간지는 조정된 지지와 그 충(冲)으로 구성한다.
+ *
  * [입춘·입추 결정 지침 — 조후(調候) 원칙]
  * 일간+월지 간지와 일간+충지(월지와 반대되는 지지) 간지, 두 후보 중
  * 하나는 입춘(바닥), 다른 하나는 입추(정점)이 된다 (두 해는 30년 간격).
@@ -48,6 +57,10 @@ export interface SajuInfo {
   monthBranch: string;
   /** 시지. 출생 시각을 모르는 경우 null (조후 판단에 가상의 시지를 쓰지 않음) */
   timeBranch: string | null;
+  /** 기점 간지에 쓰는 지지. 일간과 월지의 음양이 어긋나면 월지의 다음 지지로 조정됨 */
+  baseBranch: string;
+  /** 월지 조정 여부 */
+  adjusted: boolean;
   ganji1: string;
   ganji2: string;
 }
@@ -97,17 +110,26 @@ export function getSajuInfo(
   // 시지는 실제 출생 시각을 아는 경우에만 추출 (모름이면 정오 대입값을 쓰지 않고 null)
   const timeBranch = hour !== null ? toHangul(eightChar.getTimeZhi()) : null;
 
-  const oppositeBranch = JI_OPPOSITE[monthBranch];
-  if (!oppositeBranch) {
+  const dayIdx = GAN.indexOf(dayMaster);
+  const monthIdx = JI.indexOf(monthBranch);
+  if (dayIdx < 0 || monthIdx < 0) {
     // HANJA_MAP 누락 등으로 변환에 실패하면 잘못된 결과를 조용히 출력하지 않고 즉시 실패시킴
-    throw new Error(`월지 변환에 실패했습니다: ${monthBranch}`);
+    throw new Error(`간지 변환에 실패했습니다: ${dayMaster}${monthBranch}`);
   }
+
+  // 일간과 월지의 음양이 어긋나면(60갑자에 없는 조합) 월지를 다음 지지로 조정함.
+  // 근거: 이번 달은 다음 달을 생(生)함 (예: 계인 → 계묘)
+  const adjusted = dayIdx % 2 !== monthIdx % 2;
+  const baseBranch = adjusted ? JI[(monthIdx + 1) % 12] : monthBranch;
+  const oppositeBranch = JI_OPPOSITE[baseBranch];
 
   return {
     dayMaster,
     monthBranch,
     timeBranch,
-    ganji1: dayMaster + monthBranch,
+    baseBranch,
+    adjusted,
+    ganji1: dayMaster + baseBranch,
     ganji2: dayMaster + oppositeBranch
   };
 }
@@ -136,7 +158,7 @@ export interface JohuResult {
  *   두 후보(월지, 충지) 중 조후용신에 해당하는(가까운) 글자가 지지에 있는 간지가 입추가 됨.
  * - 조후가 중립이거나 두 후보의 냉온이 같으면 억부용신 판단이 필요하므로 추천 없이 반환함.
  */
-export function judgeJohu(monthBranch: string, timeBranch: string | null): JohuResult {
+export function judgeJohu(monthBranch: string, timeBranch: string | null, baseBranch: string = monthBranch): JohuResult {
   const monthTemp = BRANCH_TEMP[monthBranch] ?? 0;
   const timeTemp = timeBranch !== null ? (BRANCH_TEMP[timeBranch] ?? 0) : 0;
   const chartTemp = monthTemp + timeTemp;
@@ -146,8 +168,9 @@ export function judgeJohu(monthBranch: string, timeBranch: string | null): JohuR
   }
   const chart = chartTemp < 0 ? '한' : '난';
 
-  const candA = monthBranch;
-  const candB = JI_OPPOSITE[monthBranch];
+  // 사주의 한난은 실제 월지·시지로 판단하되, 후보는 (조정된) 기점 지지와 그 충으로 구성
+  const candA = baseBranch;
+  const candB = JI_OPPOSITE[baseBranch];
   const tempA = BRANCH_TEMP[candA] ?? 0;
   const tempB = BRANCH_TEMP[candB] ?? 0;
 
@@ -192,14 +215,15 @@ export interface EokbuResult {
  * - 두 후보(월지, 충지) 중 용신 방향 오행의 글자가 있는 간지가 입추.
  * - 두 후보가 같은 오행(축/미, 진/술)이거나 둘 다 용신 방향이면 판정 불가(null).
  */
-export function judgeEokbu(dayMaster: string, monthBranch: string): EokbuResult {
+export function judgeEokbu(dayMaster: string, monthBranch: string, baseBranch: string = monthBranch): EokbuResult {
   const d = GAN_ELEMENT[dayMaster];
   const isSupportive = (el: number) => el === d || el === (d + 4) % 5; // 비겁 또는 인성
 
   const strength: '신강' | '신약' = isSupportive(JI_ELEMENT[monthBranch]) ? '신강' : '신약';
 
-  const candA = monthBranch;
-  const candB = JI_OPPOSITE[monthBranch];
+  // 득령은 실제 월지로 판단하되, 후보는 (조정된) 기점 지지와 그 충으로 구성
+  const candA = baseBranch;
+  const candB = JI_OPPOSITE[baseBranch];
   const elA = JI_ELEMENT[candA];
   const elB = JI_ELEMENT[candB];
   if (elA === elB) {
@@ -230,12 +254,12 @@ export interface GijeomResult {
 /**
  * 기점(입춘/입추) 종합 판정: 1차 조후 → (중립·판정불가 시) 2차 억부 → 수동.
  */
-export function decideGijeom(dayMaster: string, monthBranch: string, timeBranch: string | null): GijeomResult {
-  const johu = judgeJohu(monthBranch, timeBranch);
+export function decideGijeom(dayMaster: string, monthBranch: string, timeBranch: string | null, baseBranch: string = monthBranch): GijeomResult {
+  const johu = judgeJohu(monthBranch, timeBranch, baseBranch);
   if (johu.ipchunBranch) {
     return { method: '조후', johu, eokbu: null, ipchuBranch: johu.ipchuBranch, ipchunBranch: johu.ipchunBranch };
   }
-  const eokbu = judgeEokbu(dayMaster, monthBranch);
+  const eokbu = judgeEokbu(dayMaster, monthBranch, baseBranch);
   if (eokbu.ipchunBranch) {
     return { method: '억부', johu, eokbu, ipchuBranch: eokbu.ipchuBranch, ipchunBranch: eokbu.ipchunBranch };
   }
