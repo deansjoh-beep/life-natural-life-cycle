@@ -11,6 +11,22 @@ const MONTHS = Array.from({ length: 12 }, (_, i) => i + 1);
 const DAYS = Array.from({ length: 31 }, (_, i) => i + 1);
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 
+// 전통 생시추정 퀴즈용 데이터: 수면자세(그룹) × 가마(음양) × 시간대의 세 축으로 12지지가 유일하게 결정됨
+const TIME_BRANCHES = [
+  { branch: '자', group: '왕', yang: true, bucket: '한밤', hour: 0, label: '자시 (23~01시)' },
+  { branch: '축', group: '고', yang: false, bucket: '한밤', hour: 2, label: '축시 (01~03시)' },
+  { branch: '인', group: '생', yang: true, bucket: '새벽', hour: 4, label: '인시 (03~05시)' },
+  { branch: '묘', group: '왕', yang: false, bucket: '새벽', hour: 6, label: '묘시 (05~07시)' },
+  { branch: '진', group: '고', yang: true, bucket: '오전', hour: 8, label: '진시 (07~09시)' },
+  { branch: '사', group: '생', yang: false, bucket: '오전', hour: 10, label: '사시 (09~11시)' },
+  { branch: '오', group: '왕', yang: true, bucket: '한낮', hour: 12, label: '오시 (11~13시)' },
+  { branch: '미', group: '고', yang: false, bucket: '한낮', hour: 14, label: '미시 (13~15시)' },
+  { branch: '신', group: '생', yang: true, bucket: '오후', hour: 16, label: '신시 (15~17시)' },
+  { branch: '유', group: '왕', yang: false, bucket: '오후', hour: 18, label: '유시 (17~19시)' },
+  { branch: '술', group: '고', yang: true, bucket: '저녁', hour: 20, label: '술시 (19~21시)' },
+  { branch: '해', group: '생', yang: false, bucket: '저녁', hour: 22, label: '해시 (21~23시)' },
+];
+
 export default function App() {
   const [year, setYear] = useState(1990);
   const [month, setMonth] = useState(1);
@@ -23,6 +39,10 @@ export default function App() {
   const [analyzedYear, setAnalyzedYear] = useState<number | null>(null);
   const [gender, setGender] = useState<'male' | 'female'>('male');
   const [daeun, setDaeun] = useState<DaeunItem[] | null>(null);
+  const [quizOpen, setQuizOpen] = useState(false);
+  const [qPosture, setQPosture] = useState<string | null>(null);
+  const [qGama, setQGama] = useState<string | null>(null);
+  const [qTime, setQTime] = useState<string | null>(null);
   const [selectedIpchunGanji, setSelectedIpchunGanji] = useState<string | null>(null);
   
   const [currentPage, setCurrentPage] = useState<'input' | 'result' | 'guide'>('input');
@@ -368,6 +388,88 @@ export default function App() {
                           </div>
                         </div>
                         <p className="text-[10px] text-gray-400 ml-1">* 시간을 모르는 경우 만세력 계산은 정오(12시)를 기준으로 하되, 조후 판단은 월지만으로 합니다. 절기가 바뀌는 날 출생자는 시각에 따라 결과가 달라질 수 있습니다.</p>
+                        {hour === null && (
+                          <div className="mt-2">
+                            <button
+                              type="button"
+                              onClick={() => setQuizOpen(!quizOpen)}
+                              className="text-[11px] font-semibold text-blue-500 hover:text-blue-700 transition-colors ml-1"
+                            >
+                              {quizOpen ? '생시추정 퀴즈 접기 ▲' : '태어난 시간을 잘 모르시나요? 전통 생시추정 퀴즈로 짐작해 보기 ▼'}
+                            </button>
+                            {quizOpen && (
+                              <div className="mt-3 bg-gray-50 rounded-2xl p-5 space-y-4">
+                                {[
+                                  { key: 'posture', title: '1. 평소 잠자는 자세는? (수면 자세)', value: qPosture, set: setQPosture, options: [
+                                    { v: '왕', t: '하늘을 보고 반듯이 잔다' },
+                                    { v: '생', t: '옆으로 누워 잔다' },
+                                    { v: '고', t: '엎드리거나 뒤척이며 잔다' },
+                                  ] },
+                                  { key: 'gama', title: '2. 정수리 가마의 위치는?', value: qGama, set: setQGama, options: [
+                                    { v: '양', t: '오른쪽에 있다' },
+                                    { v: '음', t: '왼쪽에 있다' },
+                                  ] },
+                                  { key: 'time', title: '3. 가족에게 들은 대략적인 출생 시간대는?', value: qTime, set: setQTime, options: [
+                                    { v: '한밤', t: '한밤 (23~03시)' },
+                                    { v: '새벽', t: '새벽 (03~07시)' },
+                                    { v: '오전', t: '오전 (07~11시)' },
+                                    { v: '한낮', t: '한낮 (11~15시)' },
+                                    { v: '오후', t: '오후 (15~19시)' },
+                                    { v: '저녁', t: '저녁 (19~23시)' },
+                                  ] },
+                                ].map((q) => (
+                                  <div key={q.key}>
+                                    <p className="text-[11px] font-bold text-gray-600 mb-1.5">{q.title}</p>
+                                    <div className="flex flex-wrap gap-1.5">
+                                      {q.options.map((o) => (
+                                        <button
+                                          key={o.v}
+                                          type="button"
+                                          onClick={() => q.set(q.value === o.v ? null : o.v)}
+                                          className={'px-3 py-1.5 rounded-lg text-[11px] font-medium border transition-colors ' + (q.value === o.v ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-gray-200 text-gray-500 hover:border-blue-300')}
+                                        >
+                                          {o.t}
+                                        </button>
+                                      ))}
+                                    </div>
+                                  </div>
+                                ))}
+
+                                {(qPosture || qGama || qTime) && (() => {
+                                  const cands = TIME_BRANCHES.filter(t =>
+                                    (!qPosture || t.group === qPosture) &&
+                                    (!qGama || (qGama === '양') === t.yang) &&
+                                    (!qTime || t.bucket === qTime)
+                                  );
+                                  if (cands.length === 0) {
+                                    return <p className="text-[11px] text-red-400">답변이 서로 어긋나 일치하는 시가 없습니다. 답을 바꾸거나 일부를 해제해 보세요.</p>;
+                                  }
+                                  return (
+                                    <div className="pt-1 border-t border-gray-200">
+                                      <p className="text-[11px] font-bold text-gray-600 mt-2 mb-1.5">
+                                        {cands.length === 1 ? '추정된 생시 — 눌러서 시간에 반영하세요' : '후보 ' + cands.length + '개 — 가장 가까운 것을 눌러 반영하세요'}
+                                      </p>
+                                      <div className="flex flex-wrap gap-1.5">
+                                        {cands.map((c) => (
+                                          <button
+                                            key={c.branch}
+                                            type="button"
+                                            onClick={() => { setHour(c.hour); setQuizOpen(false); }}
+                                            className="px-4 py-2 rounded-xl bg-white border border-blue-300 text-blue-600 text-xs font-bold hover:bg-blue-50 transition-colors"
+                                          >
+                                            {c.label}
+                                          </button>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  );
+                                })()}
+
+                                <p className="text-[10px] text-gray-400">* 수면 자세·가마 위치로 생시를 가늠하는 민간 전승 추정법으로, 과학적 근거는 없으며 참고용입니다. 답을 다시 누르면 해제됩니다.</p>
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                       {isLunar && (
                         <label className="flex items-center gap-3 cursor-pointer group w-fit mx-auto">
