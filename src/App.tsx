@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Calendar, Info, ChevronRight, RefreshCcw, ArrowRight, Check, Download, ShieldCheck, ExternalLink, Youtube, Globe } from 'lucide-react';
-import { getSajuInfo, getYearByGanji, decideGijeom, isValidGanji, SajuInfo, SEASONS, MAJOR_SEASONS } from './lib/saju';
+import { getSajuInfo, getYearByGanji, decideGijeom, isValidGanji, getDaeunList, getBranchTemp, SajuInfo, DaeunItem, SEASONS, MAJOR_SEASONS } from './lib/saju';
 import LifeCycleChart from './components/LifeCycleChart';
 import { jsPDF } from 'jspdf';
 import { domToCanvas } from 'modern-screenshot';
@@ -21,6 +21,8 @@ export default function App() {
   const [privacyAccepted, setPrivacyAccepted] = useState(false);
   const [saju, setSaju] = useState<SajuInfo | null>(null);
   const [analyzedYear, setAnalyzedYear] = useState<number | null>(null);
+  const [gender, setGender] = useState<'male' | 'female'>('male');
+  const [daeun, setDaeun] = useState<DaeunItem[] | null>(null);
   const [selectedIpchunGanji, setSelectedIpchunGanji] = useState<string | null>(null);
   
   const [currentPage, setCurrentPage] = useState<'input' | 'result' | 'guide'>('input');
@@ -46,6 +48,7 @@ export default function App() {
       const gijeom = decideGijeom(info.dayMaster, info.monthBranch, info.timeBranch, info.baseBranch);
       setSaju(info);
       setAnalyzedYear(year);
+      setDaeun(getDaeunList(year, month, day, isLunar, isLunar && isLeapMonth, hour, gender));
       // 조후 → 억부 순으로 판정해 추천 입춘을 기본값으로, 판정 불가면 일간+월지 조합을 기본값으로
       setSelectedIpchunGanji(gijeom.ipchunBranch ? info.dayMaster + gijeom.ipchunBranch : info.ganji1);
       setCurrentPage('result');
@@ -192,6 +195,7 @@ export default function App() {
   const reset = () => {
     setCurrentPage('input');
     setSaju(null);
+    setDaeun(null);
     setPrivacyAccepted(false);
   };
 
@@ -300,6 +304,22 @@ export default function App() {
                         className={`px-10 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300 ${isLunar ? 'bg-white shadow-md text-blue-600' : 'text-gray-400 hover:text-gray-600'}`}
                       >
                         음력
+                      </button>
+                    </div>
+
+                    {/* Gender Toggle (대운 계산용) */}
+                    <div className="flex justify-center p-1.5 bg-gray-100/80 backdrop-blur-sm rounded-2xl w-fit mx-auto">
+                      <button
+                        onClick={() => setGender('male')}
+                        className={'px-10 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300 ' + (gender === 'male' ? 'bg-white shadow-md text-blue-600' : 'text-gray-400 hover:text-gray-600')}
+                      >
+                        남성
+                      </button>
+                      <button
+                        onClick={() => setGender('female')}
+                        className={'px-10 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300 ' + (gender === 'female' ? 'bg-white shadow-md text-blue-600' : 'text-gray-400 hover:text-gray-600')}
+                      >
+                        여성
                       </button>
                     </div>
 
@@ -466,6 +486,52 @@ export default function App() {
                   </div>
                 )}
 
+                {daeun && daeun.length > 0 && (
+                  <div className="bg-white rounded-3xl p-8 border border-gray-100 shadow-sm">
+                    <h3 className="text-xl font-medium mb-2 flex items-center gap-2">
+                      <span className="w-2 h-8 bg-amber-500 rounded-full"></span>
+                      전통 대운 타임라인
+                    </h3>
+                    <p className="text-xs text-gray-400 mb-5">10년마다 바뀌는 기운의 온도입니다. 위 인생의 계절(위치)과 함께 읽어보세요.</p>
+                    <div className="flex gap-2 overflow-x-auto pb-2 custom-scrollbar">
+                      {daeun.map((d, i) => {
+                        const temp = getBranchTemp(d.ganzhi[1]);
+                        const nowYear = new Date().getFullYear();
+                        const isCurrent = nowYear >= d.startYear && nowYear < d.startYear + 10;
+                        const tempCls = temp > 0 ? 'bg-orange-50 border-orange-200' : temp < 0 ? 'bg-blue-50 border-blue-200' : 'bg-gray-50 border-gray-100';
+                        const tempTxt = temp > 0 ? '따뜻함' : temp < 0 ? '차가움' : '중립';
+                        const tempTxtCls = temp > 0 ? 'text-orange-500' : temp < 0 ? 'text-blue-500' : 'text-gray-400';
+                        return (
+                          <div key={i} className={'flex-shrink-0 w-24 rounded-2xl border p-3 text-center ' + tempCls + (isCurrent ? ' ring-2 ring-amber-400' : '')}>
+                            {isCurrent && <p className="text-[9px] font-bold text-amber-600 mb-0.5">지금</p>}
+                            <p className="text-lg font-bold">{d.ganzhi}</p>
+                            <p className="text-[10px] text-gray-500 mt-0.5">{d.startAge}~{d.startAge + 9}세</p>
+                            <p className="text-[10px] text-gray-400">{d.startYear}~{d.startYear + 9}</p>
+                            <p className={'text-[10px] font-semibold mt-1 ' + tempTxtCls}>{tempTxt}</p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    {decision && (() => {
+                      const nowYear = new Date().getFullYear();
+                      const curDaeun = daeun.find(d => nowYear >= d.startYear && nowYear < d.startYear + 10);
+                      if (!curDaeun) return null;
+                      const t = getBranchTemp(curDaeun.ganzhi[1]);
+                      const c = decision.johu.chart;
+                      let msg = '지금 대운의 기운을 인생의 계절과 함께 참고해 보세요.';
+                      if (c === '한' && t > 0) msg = '차가운 사주가 따뜻한 대운을 지나는 중입니다. 계절이 겨울이라면, 겨울을 조금 더 편안히 나게 돕는 난로 같은 온기입니다.';
+                      else if (c === '한' && t < 0) msg = '차가운 사주에 차가운 대운입니다. 무리한 확장보다 내실을 다지며 지나기 좋은 시기입니다.';
+                      else if (c === '난' && t < 0) msg = '더운 사주에 시원한 대운입니다. 과열을 식혀 균형을 잡아주는 그늘 같은 기운입니다.';
+                      else if (c === '난' && t > 0) msg = '더운 사주에 더운 대운입니다. 속도를 조절하며 차분히 지나는 것이 좋습니다.';
+                      return (
+                        <p className="mt-4 text-[11px] text-gray-500 flex items-start gap-1 leading-relaxed">
+                          <Info size={12} className="mt-0.5 flex-shrink-0" /> {msg}
+                        </p>
+                      );
+                    })()}
+                  </div>
+                )}
+
                 <div className="space-y-6">
                   <div className="bg-white rounded-3xl p-8 border border-gray-100 shadow-sm">
                     <h3 className="text-xl font-medium mb-6 flex items-center gap-2">
@@ -555,6 +621,28 @@ export default function App() {
                     </div>
                     <ExternalLink size={16} className="text-gray-300 group-hover:text-blue-500" />
                   </a>
+                </div>
+              </div>
+
+              {/* Card News: 계절과 대운 읽는 요령 */}
+              <div className="bg-white rounded-[40px] p-8 md:p-12 shadow-xl shadow-gray-200/50 border border-gray-100">
+                <div className="serif text-3xl mb-2">인생의 계절과 다가오는 대운을 읽는 요령</div>
+                <p className="text-gray-400 mb-8">운을 볼 때는 시계가 두 개 필요합니다.</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {[
+                    { num: 1, title: '첫 번째 시계, 인생의 계절', body: '인생은 60년을 주기로 봄·여름·가을·겨울을 돕니다. 이 시계는 지금 내가 인생의 어느 위치에 있는지를 알려줍니다. 봄에는 심고, 여름에는 키우고, 가을에는 거두고, 겨울에는 갈무리합니다.', cls: 'bg-green-50/60 border-green-100' },
+                    { num: 2, title: '두 번째 시계, 대운', body: '전통 명리의 대운은 10년마다 바뀌는 기운의 날씨입니다. 따뜻한 대운도 있고 차가운 대운도 있습니다. 이 시계는 그 시기를 얼마나 수월하게 보낼 수 있는지, 환경의 온도를 알려줍니다.', cls: 'bg-amber-50/60 border-amber-100' },
+                    { num: 3, title: '두 시계는 다른 것을 말합니다', body: '계절은 "무엇을 할 때인가"를, 대운은 "얼마나 편하게 할 수 있는가"를 말합니다. 대운이 아무리 따뜻해도 겨울이 여름으로 바뀌지는 않습니다.', cls: 'bg-gray-50 border-gray-100' },
+                    { num: 4, title: '겨울 + 따뜻한 대운 = 난로가 있는 겨울', body: '겨울은 확장할 때가 아니라 갈무리하고 다음 순환을 준비할 때입니다. 이때 따뜻한 대운이 오면, 추운 계절을 얼어붙지 않고 편안히 날 수 있게 도와주는 난로가 됩니다.', cls: 'bg-blue-50/60 border-blue-100' },
+                    { num: 5, title: '여름 + 차가운 대운 = 한여름의 그늘', body: '무더운 전성기에 서늘한 대운이 오면 과열을 식혀주는 그늘이 됩니다. 기세가 꺾이는 것이 아니라, 오래 달릴 수 있도록 속도를 조절해 주는 것입니다.', cls: 'bg-orange-50/60 border-orange-100' },
+                    { num: 6, title: '함께 읽는 요령 세 가지', body: '① 먼저 내 계절을 확인합니다 — 지금은 무엇을 할 때인가. ② 대운의 온도를 봅니다 — 그 일을 얼마나 편하게 할 수 있는가. ③ 계절이 시키는 일을 하되, 대운은 그 여정의 날씨로 참고합니다. 겨울에 씨를 뿌리지 않고, 여름에 곡식을 거두지 않습니다.', cls: 'bg-gray-900 border-gray-900 md:col-span-2' },
+                  ].map((c) => (
+                    <section key={c.num} className={'rounded-3xl p-7 border ' + c.cls}>
+                      <span className={'inline-flex w-8 h-8 rounded-xl items-center justify-center text-sm font-bold mb-3 ' + (c.num === 6 ? 'bg-white/10 text-white' : 'bg-white text-blue-600 border border-gray-200 shadow-sm')}>{c.num}</span>
+                      <h3 className={'text-lg font-bold mb-2 ' + (c.num === 6 ? 'text-white' : 'text-[#1A1A1A]')}>{c.title}</h3>
+                      <p className={'text-sm leading-relaxed ' + (c.num === 6 ? 'text-gray-300' : 'text-gray-500')}>{c.body}</p>
+                    </section>
+                  ))}
                 </div>
               </div>
 

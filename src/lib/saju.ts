@@ -268,6 +268,59 @@ export function decideGijeom(dayMaster: string, monthBranch: string, timeBranch:
   return { method: null, johu, eokbu, ipchuBranch: null, ipchunBranch: null };
 }
 
+export interface DaeunItem {
+  /** 한글 간지 (예: 경오) */
+  ganzhi: string;
+  /** 시작 나이 (lunar-typescript 반환값) */
+  startAge: number;
+  /** 시작 연도 */
+  startYear: number;
+}
+
+/**
+ * 전통 명리의 대운(10년 단위) 목록을 계산함.
+ * 순행/역행은 연간의 음양과 성별로 결정되며 lunar-typescript의 Yun 계산을 사용함.
+ * 시각을 모르는 경우 정오 기준으로 계산하므로 대운수가 실제와 1 정도 차이날 수 있음.
+ */
+export function getDaeunList(
+  year: number,
+  month: number,
+  day: number,
+  isLunar: boolean,
+  isLeapMonth: boolean = false,
+  hour: number | null = null,
+  gender: 'male' | 'female' = 'male'
+): DaeunItem[] {
+  const h = hour ?? 12;
+  let solar: Solar;
+  if (isLunar) {
+    const lunar = Lunar.fromYmd(year, isLeapMonth ? -month : month, day);
+    const s = lunar.getSolar();
+    solar = Solar.fromYmdHms(s.getYear(), s.getMonth(), s.getDay(), h, 0, 0);
+  } else {
+    solar = Solar.fromYmdHms(year, month, day, h, 0, 0);
+  }
+  const eightChar = solar.getLunar().getEightChar();
+  const yun = eightChar.getYun(gender === 'male' ? 1 : 0);
+  const items: DaeunItem[] = [];
+  for (const dy of yun.getDaYun()) {
+    const gz = dy.getGanZhi();
+    if (!gz) continue; // 첫 항목은 출생~첫 대운 전 기간
+    items.push({
+      ganzhi: toHangul(gz.charAt(0)) + toHangul(gz.charAt(1)),
+      startAge: dy.getStartAge(),
+      startYear: dy.getStartYear()
+    });
+    if (items.length >= 9) break;
+  }
+  return items;
+}
+
+/** 지지의 냉온 점수 (한 -1, 중립 0, 난 +1) — UI 표시용 */
+export function getBranchTemp(branch: string): number {
+  return BRANCH_TEMP[branch] ?? 0;
+}
+
 /**
  * 주어진 간지에 해당하는 연도 중, 기준 연도(출생 연도)가 속한 주기의 연도를 반환함.
  * 반환값은 항상 referenceYear 이하, referenceYear - 59 이상임.
