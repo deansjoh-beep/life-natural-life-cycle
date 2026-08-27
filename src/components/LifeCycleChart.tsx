@@ -100,10 +100,14 @@ const LifeCycleChart: React.FC<Props> = ({ ipchunYear, currentYear, birthYear })
         .attr('fill', isSeasonStart ? QUADRANTS[startIdx].label : isMajor ? '#ef4444' : '#9ca3af')
         .text(s.name);
 
-      // 해당 절기의 연도 표시 (2주기)
+      // 해당 절기의 연도 표시 — 출생 연도부터 100세까지 살아있는 기간만
       const yearsFromIpchun = (s.angle - 180 < 0 ? s.angle + 180 : s.angle - 180) / 360 * 60;
-      const seasonYear1 = Math.floor(ipchunYear + yearsFromIpchun);
-      const seasonYear2 = seasonYear1 + 60;
+      const baseYear = Math.floor(ipchunYear + yearsFromIpchun);
+      const lifeYears: number[] = [];
+      for (let k = 0; k < 4; k++) {
+        const y = baseYear + k * 60;
+        if (y >= birthYear && y <= birthYear + 100) lifeYears.push(y);
+      }
 
       const yearRadius = innerRadius - 22;
       const yearX = Math.cos(angleRad) * yearRadius;
@@ -121,15 +125,12 @@ const LifeCycleChart: React.FC<Props> = ({ ipchunYear, currentYear, birthYear })
         .style('stroke', '#fff')
         .style('stroke-width', '4px');
 
-      yearText.append('tspan')
-        .attr('x', yearX)
-        .attr('dy', '-0.6em')
-        .text(seasonYear1);
-
-      yearText.append('tspan')
-        .attr('x', yearX)
-        .attr('dy', '1.2em')
-        .text(seasonYear2);
+      lifeYears.forEach((y, i) => {
+        yearText.append('tspan')
+          .attr('x', yearX)
+          .attr('dy', i === 0 ? (lifeYears.length === 1 ? '0' : '-0.6em') : '1.2em')
+          .text(y);
+      });
     });
 
     // ── 5. 계절 이름 (국면 중앙, 큰 라벨) ──
