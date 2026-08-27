@@ -505,7 +505,7 @@ export default function App() {
                           <div key={i} className={'flex-shrink-0 w-24 rounded-2xl border p-3 text-center ' + tempCls + (isCurrent ? ' ring-2 ring-amber-400' : '')}>
                             {isCurrent && <p className="text-[9px] font-bold text-amber-600 mb-0.5">지금</p>}
                             <p className="text-lg font-bold">{d.ganzhi}</p>
-                            <p className="text-[10px] text-gray-500 mt-0.5">{d.startAge}~{d.startAge + 9}세</p>
+                            <p className="text-[10px] text-gray-500 mt-0.5">만 {d.startAge - 1}~{d.startAge + 8}세</p>
                             <p className="text-[10px] text-gray-400">{d.startYear}~{d.startYear + 9}</p>
                             <p className={'text-[10px] font-semibold mt-1 ' + tempTxtCls}>{tempTxt}</p>
                           </div>
