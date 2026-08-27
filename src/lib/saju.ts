@@ -24,6 +24,8 @@
  *
  * 1. 조후 판단: 사주의 한난(寒暖)은 '월지'와 '시지' 글자의 냉온 여부로 판단한다.
  *    - 지지 냉온 분류: 한(寒) = 해·자·축·인·술 / 난(暖) = 사·오·미 / 중립 = 묘·진·신·유
+ *    - 가중치: 월지 2, 시지 1. 냉온 점수를 가중 합산하므로 월지의 영향이 두 배이며,
+ *      시지는 월지의 판정을 뒤집을 수 없고 중립 월지의 기울기만 정할 수 있다.
  *    - 월지·시지가 찬 글자 중심이면 사주는 한(寒)하고, 더운 글자 중심이면 난(暖)하다.
  *    - 시주(출생 시각)를 모르는 경우에는 '월지'만으로 조후를 판단한다.
  *      (만세력 계산상 정오를 대입하더라도, 조후 판단에 가상의 시지를 쓰지 않음)
@@ -153,7 +155,8 @@ export interface JohuResult {
 
 /**
  * 조후(調候)로 입춘/입추 후보를 판정함.
- * - 월지와 시지의 냉온으로 사주의 한난(寒暖)을 판단함. 시주를 모르면 월지만으로 판단.
+ * - 월지와 시지의 냉온으로 사주의 한난(寒暖)을 판단함(가중치: 월지 2, 시지 1).
+ *   시주를 모르면 월지만으로 판단.
  * - 한(寒)하면 따뜻한 글자, 난(暖)하면 차가운 글자가 조후용신이며,
  *   두 후보(월지, 충지) 중 조후용신에 해당하는(가까운) 글자가 지지에 있는 간지가 입추가 됨.
  * - 조후가 중립이거나 두 후보의 냉온이 같으면 억부용신 판단이 필요하므로 추천 없이 반환함.
@@ -161,7 +164,8 @@ export interface JohuResult {
 export function judgeJohu(monthBranch: string, timeBranch: string | null, baseBranch: string = monthBranch): JohuResult {
   const monthTemp = BRANCH_TEMP[monthBranch] ?? 0;
   const timeTemp = timeBranch !== null ? (BRANCH_TEMP[timeBranch] ?? 0) : 0;
-  const chartTemp = monthTemp + timeTemp;
+  // 가중치: 월지 2, 시지 1 — 월지가 조후에 더 큰 영향을 미침
+  const chartTemp = monthTemp * 2 + timeTemp;
 
   if (chartTemp === 0) {
     return { chart: '중립', ipchuBranch: null, ipchunBranch: null };
