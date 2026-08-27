@@ -458,7 +458,7 @@ export default function App() {
                       ? (decision.method === '조후'
                           ? '조후 판정: 사주가 ' + decision.johu.chart + (decision.johu.chart === '한' ? '(寒)' : '(暖)') + '하여 ' + (decision.johu.chart === '한' ? '따뜻한 쪽' : '차가운 쪽') + '인 [' + decision.ipchuBranch + ']가 조후용신에 가까움 → [' + saju.dayMaster + decision.ipchuBranch + ']가 입추(정점)이 되고, [' + saju.dayMaster + decision.ipchunBranch + ']를 입춘 기점으로 추천합니다. 살아온 인생과 다르면 직접 변경하세요.'
                           : '억부 판정(조후 중립): 일간 [' + saju.dayMaster + ']는 월지 [' + saju.monthBranch + ']에 ' + (decision.eokbu!.strength === '신강' ? '득령하여 신강' : '실령하여 신약') + '하므로, ' + (decision.eokbu!.strength === '신강' ? '힘을 빼거나 억제하는' : '일간을 돕는') + ' 오행의 글자 [' + decision.ipchuBranch + ']가 억부용신에 가까움 → [' + saju.dayMaster + decision.ipchuBranch + ']가 입추(정점)이 되고, [' + saju.dayMaster + decision.ipchunBranch + ']를 입춘 기점으로 추천합니다. 살아온 인생과 다르면 직접 변경하세요.')
-                      : '조후가 중립적이고 억부(월지 득령 기준)로도 두 후보를 가릴 수 없습니다. 살아온 인생을 바탕으로 입춘 기점을 직접 선택하세요.')}
+                      : '조후가 중립적이고 억부(월지 득령 기준)로도 두 후보를 가릴 수 없습니다. 살아온 인생을 바탕으로 입춘 기점을 직접 선택하세요. 고르는 방법은 가이드의 "기점을 직접 골라야 할 때"를 참고하세요.')}
                   </p>
                 </div>
                 {/* Print-only selected ganji */}
@@ -644,6 +644,35 @@ export default function App() {
                     </section>
                   ))}
                 </div>
+              </div>
+
+              {/* Manual Selection Guide: 살아온 인생 대조법 */}
+              <div className="bg-white rounded-[40px] p-8 md:p-12 shadow-xl shadow-gray-200/50 border border-gray-100">
+                <div className="serif text-3xl mb-2">기점을 직접 골라야 할 때</div>
+                <p className="text-gray-400 mb-8">사주에 따라 조후·억부만으로는 두 후보를 가릴 수 없는 경우가 있습니다. 이때는 살아온 인생을 두 시나리오와 대조해 확정합니다.</p>
+
+                <div className="bg-blue-50/40 rounded-3xl p-7 border border-blue-100/50 mb-4">
+                  <h3 className="text-lg font-bold mb-2 text-[#1A1A1A]">원리: 두 후보는 정반대의 이야기를 합니다</h3>
+                  <p className="text-sm text-gray-500 leading-relaxed">두 후보 간지는 30년 간격이라, 한쪽 시나리오에서 입춘(바닥)인 해가 다른 쪽 시나리오에서는 입추(정점)인 해가 됩니다. 예측이 정반대이므로, 실제 살아온 인생과 대조하면 어느 쪽이 맞는지 드러납니다. 두 후보 버튼을 번갈아 눌러 각각의 연도 배치를 확인하며 아래 질문에 답해 보세요.</p>
+                </div>
+
+                <div className="grid grid-cols-1 gap-4">
+                  {[
+                    { num: 1, title: '후보의 해에 무슨 일이 있었나요?', body: '입춘(바닥)의 해에는 새로운 씨앗이 심깁니다 — 취직, 결혼, 출산, 새 출발. 사회적 확장은 잘 안 되지만 마음은 오히려 평온할 수 있습니다. 반대로 입추(정점)의 해에는 지위·성과·인정이 눈에 띄게 절정에 달합니다.' },
+                    { num: 2, title: '지금의 나는 어느 계절 같나요?', body: '삶의 폭이 넓어지고 활동과 압박이 커지는 중이라면 여름 쪽입니다. 일을 줄이고 정리하며 갈무리하는 중이라면 겨울 쪽입니다. 각 후보가 말하는 "지금의 계절"과 실제 내 모습을 비교해 보세요. 입춘 앞의 15년이 겨울이라는 점도 함께 보면 좋습니다 — 긴 준비기, 늦은 출발이 그 자리에 놓이는지요.' },
+                    { num: 3, title: '기분이 아니라 폭으로 판단하세요', body: '바닥은 불행이 아니고, 정점은 편안함이 아닙니다. 바닥의 해에도 하루하루 즐거울 수 있고(운의 위상이 낮을 뿐), 정점을 향해 갈 때는 스트레스가 몇 배일 수 있습니다(활동의 폭이 넓을 뿐). 판단 기준은 감정이 아니라 활동의 폭과 사회적 위상입니다.' },
+                  ].map((c) => (
+                    <section key={c.num} className="flex items-start gap-5 bg-gray-50/50 rounded-3xl p-7 border border-gray-100/50">
+                      <span className="flex-shrink-0 w-8 h-8 rounded-xl bg-white border border-gray-200 text-blue-600 text-sm font-bold flex items-center justify-center shadow-sm">{c.num}</span>
+                      <div>
+                        <h3 className="text-base font-bold text-[#1A1A1A] mb-1.5">{c.title}</h3>
+                        <p className="text-sm text-gray-500 leading-relaxed">{c.body}</p>
+                      </div>
+                    </section>
+                  ))}
+                </div>
+
+                <p className="mt-5 text-xs text-gray-400 leading-relaxed bg-gray-50/50 rounded-2xl p-5 border border-gray-100/50">예시: 한 후보는 25년 전을 바닥으로, 다른 후보는 같은 해를 정점으로 가리킨다고 합시다. 그 해에 취직으로 새 씨앗을 심었고 승진 욕심 없이 평온했다면 그해는 입춘(바닥)입니다. 그리고 지금 새로운 도전으로 삶의 폭이 넓어졌지만 아직 결실이 없다면, 지금은 곡식을 키우는 여름이며 — 결실은 다가오는 입추(정점)부터 열립니다.</p>
               </div>
 
               {/* Logic Guide Card */}
