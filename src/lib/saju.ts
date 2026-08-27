@@ -24,6 +24,14 @@
  *    간지가 입추)
  * 3. 조후가 중립적인 경우(월지·시지의 한난이 상쇄되거나 봄·가을의 중립적인
  *    글자인 경우): '억부용신'에 가까운 글자가 지지에 있는 간지를 입추로 정한다.
+ *    - 억부는 자평명리학의 '월지 득령(得令) 여부'를 중심으로 판정한다:
+ *      월지의 오행이 일간의 인성(일간을 생하는 오행) 또는 비겁(일간과 같은
+ *      오행)이면 득령 → 신강, 아니면 실령 → 신약으로 본다.
+ *    - 신약이면 일간을 돕는 오행(인성·비겁)이, 신강이면 일간의 힘을 빼거나
+ *      억제하는 오행(식상·재성·관성)이 억부용신 방향이 된다.
+ *    - 두 후보 지지 중 억부용신 방향의 오행에 해당하는 글자가 있는 간지를
+ *      입추로 정한다. 억부로도 가릴 수 없는 경우(두 후보가 같은 오행인
+ *      축/미·진/술 등)에는 사용자가 직접 선택한다.
  */
 import { Solar, Lunar } from 'lunar-typescript';
 
@@ -155,6 +163,83 @@ export function judgeJohu(monthBranch: string, timeBranch: string | null): JohuR
     : (tempA < tempB ? candA : candB);
   const ipchunBranch = ipchuBranch === candA ? candB : candA;
   return { chart, ipchuBranch, ipchunBranch };
+}
+
+// 오행 인덱스: 목0 화1 토2 금3 수4 (상생: i → (i+1)%5, 생아(인성): (i+4)%5)
+const GAN_ELEMENT: Record<string, number> = {
+  '갑': 0, '을': 0, '병': 1, '정': 1, '무': 2, '기': 2, '경': 3, '신': 3, '임': 4, '계': 4
+};
+const JI_ELEMENT: Record<string, number> = {
+  '인': 0, '묘': 0, '사': 1, '오': 1, '진': 2, '술': 2, '축': 2, '미': 2,
+  '신': 3, '유': 3, '해': 4, '자': 4
+};
+
+export interface EokbuResult {
+  /** 월지 득령 여부 중심의 신강/신약 판정 */
+  strength: '신강' | '신약';
+  /** 입추로 추천되는 지지 (억부로도 가릴 수 없으면 null) */
+  ipchuBranch: string | null;
+  /** 입춘으로 추천되는 지지 */
+  ipchunBranch: string | null;
+}
+
+/**
+ * 억부(抑扶)로 입춘/입추 후보를 판정함. 조후가 중립일 때만 사용.
+ * - 신강/신약은 자평명리학의 '월지 득령 여부'를 중심으로 판정:
+ *   월지 오행이 일간의 인성·비겁이면 득령 → 신강, 아니면 실령 → 신약.
+ * - 신약 → 일간을 돕는 오행(인성·비겁)이 용신 / 신강 → 힘을 빼거나 억제하는
+ *   오행(식상·재성·관성)이 용신.
+ * - 두 후보(월지, 충지) 중 용신 방향 오행의 글자가 있는 간지가 입추.
+ * - 두 후보가 같은 오행(축/미, 진/술)이거나 둘 다 용신 방향이면 판정 불가(null).
+ */
+export function judgeEokbu(dayMaster: string, monthBranch: string): EokbuResult {
+  const d = GAN_ELEMENT[dayMaster];
+  const isSupportive = (el: number) => el === d || el === (d + 4) % 5; // 비겁 또는 인성
+
+  const strength: '신강' | '신약' = isSupportive(JI_ELEMENT[monthBranch]) ? '신강' : '신약';
+
+  const candA = monthBranch;
+  const candB = JI_OPPOSITE[monthBranch];
+  const elA = JI_ELEMENT[candA];
+  const elB = JI_ELEMENT[candB];
+  if (elA === elB) {
+    // 축/미, 진/술: 두 후보가 같은 오행(토)이라 억부로 가릴 수 없음
+    return { strength, ipchuBranch: null, ipchunBranch: null };
+  }
+
+  const aIsYongsin = strength === '신약' ? isSupportive(elA) : !isSupportive(elA);
+  const bIsYongsin = strength === '신약' ? isSupportive(elB) : !isSupportive(elB);
+  if (aIsYongsin === bIsYongsin) {
+    // 두 후보가 모두 용신 방향이거나 모두 아님 → 판정 불가
+    return { strength, ipchuBranch: null, ipchunBranch: null };
+  }
+
+  const ipchuBranch = aIsYongsin ? candA : candB;
+  return { strength, ipchuBranch, ipchunBranch: ipchuBranch === candA ? candB : candA };
+}
+
+export interface GijeomResult {
+  /** 판정에 사용된 방법. 자동 판정 불가 시 null */
+  method: '조후' | '억부' | null;
+  johu: JohuResult;
+  eokbu: EokbuResult | null;
+  ipchuBranch: string | null;
+  ipchunBranch: string | null;
+}
+
+/**
+ * 기점(입춘/입추) 종합 판정: 1차 조후 → (중립·판정불가 시) 2차 억부 → 수동.
+ */
+export function decideGijeom(dayMaster: string, monthBranch: string, timeBranch: string | null): GijeomResult {
+  const johu = judgeJohu(monthBranch, timeBranch);
+  if (johu.ipchunBranch) {
+    return { method: '조후', johu, eokbu: null, ipchuBranch: johu.ipchuBranch, ipchunBranch: johu.ipchunBranch };
+  }
+  const eokbu = judgeEokbu(dayMaster, monthBranch);
+  if (eokbu.ipchunBranch) {
+    return { method: '억부', johu, eokbu, ipchuBranch: eokbu.ipchuBranch, ipchunBranch: eokbu.ipchunBranch };
+  }
+  return { method: null, johu, eokbu, ipchuBranch: null, ipchunBranch: null };
 }
 
 /**
