@@ -14,8 +14,8 @@
  * 하나는 입춘(바닥), 다른 하나는 입추(정점)이 된다 (두 해는 30년 간격).
  *
  * 1. 조후 판단: 사주의 한난(寒暖)은 '월지'와 '시지' 글자의 냉온 여부로 판단한다.
- *    - 월지·시지가 찬 글자(겨울·냉 기운: 해·자·축 등) 중심이면 사주는 한(寒)하다.
- *    - 월지·시지가 더운 글자(여름·온 기운: 사·오·미 등) 중심이면 사주는 난(暖)하다.
+ *    - 지지 냉온 분류: 한(寒) = 해·자·축·인·술 / 난(暖) = 사·오·미 / 중립 = 묘·진·신·유
+ *    - 월지·시지가 찬 글자 중심이면 사주는 한(寒)하고, 더운 글자 중심이면 난(暖)하다.
  *    - 시주(출생 시각)를 모르는 경우에는 '월지'만으로 조후를 판단한다.
  *      (만세력 계산상 정오를 대입하더라도, 조후 판단에 가상의 시지를 쓰지 않음)
  * 2. 입추 결정: 두 후보 간지 중, 지지가 '조후용신'에 해당하는 글자인 간지를
@@ -38,6 +38,8 @@ export const JI_OPPOSITE: Record<string, string> = {
 export interface SajuInfo {
   dayMaster: string;
   monthBranch: string;
+  /** 시지. 출생 시각을 모르는 경우 null (조후 판단에 가상의 시지를 쓰지 않음) */
+  timeBranch: string | null;
   ganji1: string;
   ganji2: string;
 }
@@ -84,6 +86,8 @@ export function getSajuInfo(
 
   const dayMaster = toHangul(eightChar.getDayGan());
   const monthBranch = toHangul(eightChar.getMonthZhi());
+  // 시지는 실제 출생 시각을 아는 경우에만 추출 (모름이면 정오 대입값을 쓰지 않고 null)
+  const timeBranch = hour !== null ? toHangul(eightChar.getTimeZhi()) : null;
 
   const oppositeBranch = JI_OPPOSITE[monthBranch];
   if (!oppositeBranch) {
@@ -94,9 +98,63 @@ export function getSajuInfo(
   return {
     dayMaster,
     monthBranch,
+    timeBranch,
     ganji1: dayMaster + monthBranch,
     ganji2: dayMaster + oppositeBranch
   };
+}
+
+// 조후(調候) 판단용 지지 냉온 분류 (호호당 기준 확정)
+// 한(寒): 해·자·축·인·술 / 난(暖): 사·오·미 / 중립: 묘·진·신·유
+const BRANCH_TEMP: Record<string, number> = {
+  '해': -1, '자': -1, '축': -1, '인': -1, '술': -1,
+  '사': 1, '오': 1, '미': 1,
+  '묘': 0, '진': 0, '신': 0, '유': 0
+};
+
+export interface JohuResult {
+  /** 사주의 한난 판정 */
+  chart: '한' | '난' | '중립';
+  /** 입추로 추천되는 지지 (조후만으로 가릴 수 없으면 null → 억부용신 판단 필요) */
+  ipchuBranch: string | null;
+  /** 입춘으로 추천되는 지지 */
+  ipchunBranch: string | null;
+}
+
+/**
+ * 조후(調候)로 입춘/입추 후보를 판정함.
+ * - 월지와 시지의 냉온으로 사주의 한난(寒暖)을 판단함. 시주를 모르면 월지만으로 판단.
+ * - 한(寒)하면 따뜻한 글자, 난(暖)하면 차가운 글자가 조후용신이며,
+ *   두 후보(월지, 충지) 중 조후용신에 해당하는(가까운) 글자가 지지에 있는 간지가 입추가 됨.
+ * - 조후가 중립이거나 두 후보의 냉온이 같으면 억부용신 판단이 필요하므로 추천 없이 반환함.
+ */
+export function judgeJohu(monthBranch: string, timeBranch: string | null): JohuResult {
+  const monthTemp = BRANCH_TEMP[monthBranch] ?? 0;
+  const timeTemp = timeBranch !== null ? (BRANCH_TEMP[timeBranch] ?? 0) : 0;
+  const chartTemp = monthTemp + timeTemp;
+
+  if (chartTemp === 0) {
+    return { chart: '중립', ipchuBranch: null, ipchunBranch: null };
+  }
+  const chart = chartTemp < 0 ? '한' : '난';
+
+  const candA = monthBranch;
+  const candB = JI_OPPOSITE[monthBranch];
+  const tempA = BRANCH_TEMP[candA] ?? 0;
+  const tempB = BRANCH_TEMP[candB] ?? 0;
+
+  if (tempA === tempB) {
+    // 두 후보의 냉온이 같아(묘/유 등) 조후만으로 가릴 수 없음 → 억부용신 판단 필요
+    return { chart, ipchuBranch: null, ipchunBranch: null };
+  }
+
+  // 한(寒)한 사주 → 따뜻한 쪽 후보가 조후용신에 가까움 → 입추
+  // 난(暖)한 사주 → 차가운 쪽 후보가 조후용신에 가까움 → 입추
+  const ipchuBranch = chart === '한'
+    ? (tempA > tempB ? candA : candB)
+    : (tempA < tempB ? candA : candB);
+  const ipchunBranch = ipchuBranch === candA ? candB : candA;
+  return { chart, ipchuBranch, ipchunBranch };
 }
 
 /**

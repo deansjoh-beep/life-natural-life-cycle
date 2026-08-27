@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Calendar, Info, ChevronRight, RefreshCcw, ArrowRight, Check, Download, ShieldCheck, ExternalLink, Youtube, Globe } from 'lucide-react';
-import { getSajuInfo, getYearByGanji, SajuInfo, SEASONS, MAJOR_SEASONS } from './lib/saju';
+import { getSajuInfo, getYearByGanji, judgeJohu, SajuInfo, SEASONS, MAJOR_SEASONS } from './lib/saju';
 import LifeCycleChart from './components/LifeCycleChart';
 import { jsPDF } from 'jspdf';
 import { domToCanvas } from 'modern-screenshot';
@@ -43,9 +43,11 @@ export default function App() {
     }
     try {
       const info = getSajuInfo(year, month, day, isLunar, isLunar && isLeapMonth, hour);
+      const johuResult = judgeJohu(info.monthBranch, info.timeBranch);
       setSaju(info);
       setAnalyzedYear(year);
-      setSelectedIpchunGanji(info.ganji1);
+      // 조후 판정이 가능하면 추천 입춘을 기본값으로, 중립이면 일간+월지 조합을 기본값으로
+      setSelectedIpchunGanji(johuResult.ipchunBranch ? info.dayMaster + johuResult.ipchunBranch : info.ganji1);
       setCurrentPage('result');
     } catch (e) {
       console.error('Saju calculation failed:', e);
@@ -56,6 +58,8 @@ export default function App() {
       );
     }
   };
+
+  const johu = useMemo(() => (saju ? judgeJohu(saju.monthBranch, saju.timeBranch) : null), [saju]);
 
   const lifeCycleData = useMemo(() => {
     if (!saju || !selectedIpchunGanji || analyzedYear === null) return null;
@@ -422,13 +426,15 @@ export default function App() {
                             : 'border-gray-100 hover:border-gray-300 text-gray-500'
                         }`}
                       >
-                        {g} ({idx === 0 ? '기본' : '반대'})
+                        {g} ({johu?.ipchunBranch ? (g![1] === johu.ipchunBranch ? '조후 추천 입춘' : '입추 후보') : (idx === 0 ? '기본' : '반대')})
                         {selectedIpchunGanji === g && <Check size={14} className="absolute top-2 right-2" />}
                       </button>
                     ))}
                   </div>
                   <p className="mt-3 text-[11px] text-gray-400 flex items-center gap-1">
-                    <Info size={12} /> 조후(월지·시지의 냉온, 시간을 모르면 월지만으로 판단)상 조후용신에 해당하는 글자가 지지에 있는 간지가 입추(정점)이므로, 그 반대편 간지를 입춘 기점으로 선택하세요. 조후가 중립적이면 억부용신에 가까운 글자로 입추를 정합니다.
+                    <Info size={12} /> {johu && johu.ipchunBranch && saju
+                      ? '조후 판정: 사주가 ' + johu.chart + (johu.chart === '한' ? '(寒)' : '(暖)') + '하여 ' + (johu.chart === '한' ? '따뜻한 쪽' : '차가운 쪽') + '인 [' + johu.ipchuBranch + ']가 조후용신에 가까움 → [' + saju.dayMaster + johu.ipchuBranch + ']가 입추(정점)이 되고, [' + saju.dayMaster + johu.ipchunBranch + ']를 입춘 기점으로 추천합니다. 살아온 인생과 다르면 직접 변경하세요.'
+                      : '조후가 중립적이거나 두 후보의 냉온이 같아 조후만으로 가릴 수 없습니다. 억부용신에 가까운 글자가 지지에 있는 간지를 입추로 보고, 살아온 인생을 바탕으로 입춘 기점을 직접 선택하세요.'}
                   </p>
                 </div>
                 {/* Print-only selected ganji */}
@@ -565,9 +571,9 @@ export default function App() {
                     {
                       num: 4,
                       title: "조후(調候)를 통한 입춘/입추 최종 확정",
-                      desc: "두 후보 중 어느 간지가 입추(정점)가 될지는 조후로 결정합니다. 먼저 월지와 시지 글자의 냉온 여부로 사주의 한난(寒暖)을 판단합니다. 시주(출생 시각)를 모르는 경우에는 월지만으로 조후를 판단합니다. 두 후보 간지 중 지지가 조후용신에 해당하는 글자인 간지가 입추가 되고, 나머지 간지가 입춘이 됩니다. 조후가 중립적인 경우에는 억부용신에 가까운 글자가 지지에 있는 간지를 입추로 정합니다.",
+                      desc: "두 후보 중 어느 간지가 입추(정점)가 될지는 조후로 결정합니다. 먼저 월지와 시지 글자의 냉온 여부로 사주의 한난(寒暖)을 판단합니다. 시주(출생 시각)를 모르는 경우에는 월지만으로 조후를 판단합니다. 두 후보 간지 중 지지가 조후용신에 해당하는 글자인 간지가 입추가 되고, 나머지 간지가 입춘이 됩니다. 조후가 중립적인 경우에는 억부용신에 가까운 글자가 지지에 있는 간지를 입추로 정합니다. 지지의 냉온 분류는 한(寒)=해·자·축·인·술, 난(暖)=사·오·미, 중립=묘·진·신·유를 따릅니다.",
                       example: "예시: 한겨울 자(子)월 출생으로 사주가 차가우면 따뜻한 글자가 조후용신이 되므로, 오(午)가 지지에 있는 일간+오 간지가 입추, 일간+자 간지가 입춘이 됩니다.",
-                      note: "* 본 프로그램은 디폴트로 일간과 월지의 조합을 입춘으로 설정하나, 위 조후 원칙과 살아온 인생을 돌이켜보고 기점을 직접 변경하실 수 있습니다."
+                      note: "* 본 프로그램은 조후 판정에 따라 입춘 기점을 자동 추천합니다. 조후가 중립적인 경우에는 일간+월지 조합을 기본으로 두며, 살아온 인생을 돌이켜보고 직접 변경하실 수 있습니다."
                     },
                     {
                       num: 5,
